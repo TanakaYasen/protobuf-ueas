@@ -38,3 +38,7 @@ func main() {
 		return nil
 	})
 }
+
+func main2() {
+	buildCppCode()
+}
