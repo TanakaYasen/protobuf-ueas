@@ -178,7 +178,11 @@ func dumpClass(sh *stream, scpp *stream, msg *protogen.Message) {
 	for _, field := range msg.Fields {
 		scpp.Printf("case %d:\n", field.Desc.Number())
 		if f, ok := protoNative[field.Desc.Kind()]; ok {
-			scpp.Printf("\tthis->%s_ = decoder.%s;\n", field.Desc.Name(), f.method)
+			if field.Desc.Cardinality() == protoreflect.Repeated {
+				scpp.Printf("\tthis->%s_.push_back(decoder.%s);\n", field.Desc.Name(), f.method)
+			} else {
+				scpp.Printf("\tthis->%s_ = decoder.%s;\n", field.Desc.Name(), f.method)
+			}
 		} else if field.Desc.Kind() == protoreflect.EnumKind {
 			ename := scpp.DescopedName(string(field.Desc.Enum().FullName().Name()))
 			scpp.Printf("\tthis->%s_ = (%s)decoder.DecodeEnum();\n", field.Desc.Name(), ename)
