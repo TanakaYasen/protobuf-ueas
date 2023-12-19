@@ -51,6 +51,8 @@ class WireEncoder {
 public:
     WireEncoder();
 
+    std::string Dump() const;
+
     //VARINT
     WireEncoder& EncodeInt32(uint64_t fn, int32_t);
     WireEncoder& EncodeSint32(uint64_t fn, int32_t);
@@ -81,6 +83,7 @@ public:
     WireEncoder& EncodeDouble(uint64_t fn, double);
 
     //reps
+    WireEncoder& EncodeRepBool(uint64_t fn, const std::vector<bool>&);
     WireEncoder& EncodeRepSfixed32(uint64_t fn, const std::vector<int32_t>&);
     WireEncoder& EncodeRepFixed32(uint64_t fn, const std::vector<uint32_t>&);
     WireEncoder& EncodeRepFloat(uint64_t fn, const std::vector<float>&);
@@ -154,21 +157,24 @@ public:
     uint64_t    DecodeFixed64();
     double      DecodeDouble();
 
-    //reps
-    std::vector<int32_t> DecodeRepInt32();
-    std::vector<int64_t> DecodeRepInt64();
-    std::vector<uint32_t> DecodeRepUint32();
-    std::vector<uint64_t> DecodeRepUint64();
-    std::vector<int32_t> DecodeRepSint32();
-    std::vector<int64_t> DecodeRepSint64();
-
-    std::vector<int32_t>   DecodeRepSfix32();
-    std::vector<uint32_t>   DecodeRepFix32();
-    std::vector<float>   DecodeRepFloat();
-    std::vector<int64_t>   DecodeRepSfix64();
-    std::vector<uint64_t>   DecodeRepFix64();
-    std::vector<double>   DecodeRepDouble();
-
     void        DecodeUnknown();
+
+    //reps
+#define DecodeRepDecl(suf, ct) void DecodeRep##suf(std::vector<ct>&)
+    DecodeRepDecl(Bool, bool);
+    DecodeRepDecl(Int32, int32_t);
+    DecodeRepDecl(Int64, int64_t);
+    DecodeRepDecl(Uint32, uint32_t);
+    DecodeRepDecl(Uint64, uint64_t);
+    DecodeRepDecl(Sint32, int32_t);
+    DecodeRepDecl(Sint64, int64_t);
+    DecodeRepDecl(Sfixed32, int32_t);
+    DecodeRepDecl(Fixed32, uint32_t);
+    DecodeRepDecl(Float, float);
+    DecodeRepDecl(Sfixed64, int64_t);
+    DecodeRepDecl(Fixed64, uint64_t);
+    DecodeRepDecl(Double, double);
+#undef DecodeRepDecl
+
 };
 

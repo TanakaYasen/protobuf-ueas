@@ -5,46 +5,47 @@
 static inline uint32_t read_dword(const uint8_t *data)
 {
     uint32_t u;
-    u = data[0] | data[1] << 8 | data[2] << 16 | data[3] << 24;
+    u = data[0] | (data[1] << 8) | (data[2] << 16) | (data[3] << 24);
     return u;
 }
 
 static inline uint64_t read_qword(const uint8_t *data)
 {
-    uint64_t     u;
-    u = data[4] | data[5] << 8 | data[6] << 16 | (data[7] << 24);
-    u <<= 32;
-    u |= data[0] | data[1] << 8 | data[2] << 16 | (data[3] << 24);
-    return u;
+    uint64_t high = data[4] | (data[5] << 8) | (data[6] << 16) | (data[7] << 24);
+    uint32_t low = data[0] | (data[1] << 8) | (data[2] << 16) | (data[3] << 24);
+    return (high<<32) | low;
 }
 
-static inline void write_dword(uint8_t data[], uint32_t v)
+static inline uint8_t *write_dword(uint8_t data[], uint32_t v)
 {
-    data[0] = v && 0xff;
-    data[1] = (v>>8) && 0xff;
-    data[2] = (v>>16) && 0xff;
-    data[3] = (v>>24) && 0xff;
+    data[0] = v & 0xff;
+    data[1] = (v>>8) & 0xff;
+    data[2] = (v>>16) & 0xff;
+    data[3] = (v>>24) & 0xff;
+    return &data[4];
 }
 
-static inline void write_qword(uint8_t data[], uint64_t v)
+static inline uint8_t *write_qword(uint8_t data[], uint64_t v)
 {
-    data[0] = v && 0xff;
-    data[1] = (v>>8) && 0xff;
-    data[2] = (v>>16) && 0xff;
-    data[3] = (v>>24) && 0xff;
-    data[4] = (v>>32) && 0xff;
-    data[5] = (v>>40) && 0xff;
-    data[6] = (v>>48) && 0xff;
-    data[7] = (v>>56) && 0xff;
+    data[0] = v & 0xff;
+    data[1] = (v>>8) & 0xff;
+    data[2] = (v>>16) & 0xff;
+    data[3] = (v>>24) & 0xff;
+    data[4] = (v>>32) & 0xff;
+    data[5] = (v>>40) & 0xff;
+    data[6] = (v>>48) & 0xff;
+    data[7] = (v>>56) & 0xff;
+    return &data[8];
 }
 
 
 #define KeepCV(x) (x)
-#define ZipZagE(x)   ((x>>1)^-(x&1))
-#define ZipZagD(x)   (x<<1)^(x>>(sizeof(x)-1))
+#define ZipZagE(x)   (x<<1)^(x>>(8*sizeof(x)-1))
+#define ZipZagD(x)   ((x>>1)^(-(x&1)))
 
 #define EncodeRepTempl(suf, ct, CV, writer) \
 WireEncoder& WireEncoder::EncodeRep##suf(uint64_t fn, const std::vector<ct>&vs) {\
+    if (vs.size() == 0) return *this; \
     WriteTag(fn, WT_LEN); \
     size_t len = vs.size(); \
     WriteVarint(len); \
@@ -56,8 +57,7 @@ WireEncoder& WireEncoder::EncodeRep##suf(uint64_t fn, const std::vector<ct>&vs) 
 }
 
 #define DecodeRepTempl(suf, ct, w, CV, reader) \
-std::vector<ct> WireDecoder::DecodeRep##suf() { \
-    std::vector<ct> values;    \
+void WireDecoder::DecodeRep##suf(std::vector<ct> &values) { \
     if (wt == w) { \
         ct v = (ct)reader; \
         values.push_back(CV(v)); \
@@ -65,7 +65,7 @@ std::vector<ct> WireDecoder::DecodeRep##suf() { \
     else if (wt == WT_LEN) { \
         uint64_t len = ReadVarint(); \
         if (!valid) { \
-            return values; \
+            return;\
         } \
         const uint8_t* sential = ps + len; \
         while (ps < sential) \
@@ -74,7 +74,6 @@ std::vector<ct> WireDecoder::DecodeRep##suf() { \
             values.push_back(CV(v)); \
         } \
     } \
-    return values; \
 }
 
 
@@ -83,6 +82,11 @@ WireEncoder::WireEncoder() {
     pcur = ps = &_inner[0];
     pe = ps + _inner.size();
 }
+
+std::string WireEncoder::Dump() const {
+    return std::string{(const char*)&_inner[0], (size_t)(pcur-ps)};
+}
+
 
 void WireEncoder::CheckSpace(size_t sz) {
     if (pcur + sz <= pe) { return; }
@@ -105,20 +109,18 @@ WireEncoder& WireEncoder::WriteTag(uint64_t fn, WireType wt){
 }
 WireEncoder& WireEncoder::WriteVarint(uint64_t v){
     while (v > 0x7f) {
-        pcur++[0] = v & 0x7f;
+        *pcur++ = (v & 0x7f) | 0x80;
         v >>= 7;
     }
-    pcur++[0] = v &0x7f;
+    *pcur++ = v & 0x7f;
     return *this;
 }
 WireEncoder& WireEncoder::WriteI32(uint32_t v){
-    write_dword(pcur, v);
-    pcur += sizeof(uint32_t);
+    pcur = write_dword(pcur, v);
     return *this;
 }
 WireEncoder& WireEncoder::WriteI64(uint64_t v){
-    write_qword(pcur, v);
-    pcur += sizeof(uint64_t);
+    pcur = write_qword(pcur, v);
     return *this;
 }
 
@@ -132,7 +134,7 @@ WireEncoder& WireEncoder::EncodeInt32(uint64_t fn, int32_t v){
 WireEncoder& WireEncoder::EncodeSint32(uint64_t fn, int32_t v){
     CheckSpace(10+10);
     WriteTag(fn, WT_VARINT);
-    uint32_t q = (v<<1)^(v>>(sizeof(v)-1));
+    uint32_t q = ZipZagE(v);
     WriteVarint(q);
     return *this;
 }
@@ -151,7 +153,7 @@ WireEncoder& WireEncoder::EncodeInt64(uint64_t fn, int64_t v){
 WireEncoder& WireEncoder::EncodeSint64(uint64_t fn, int64_t v){
     CheckSpace(10+10);
     WriteTag(fn, WT_VARINT);
-    uint64_t q = (v<<1)^(v>>(sizeof(v)-1));
+    uint64_t q = ZipZagE(v);
     WriteVarint(q);
     return *this;
 }
@@ -214,13 +216,13 @@ WireEncoder& WireEncoder::EncodeFloat(uint64_t fn, float v){
 //I64
 WireEncoder& WireEncoder::EncodeSfixed64(uint64_t fn, int64_t v){
     CheckSpace(10+8);
-    WriteTag(fn, WT_I32);
+    WriteTag(fn, WT_I64);
     WriteI64((uint64_t)v);
     return *this;
 }
 WireEncoder& WireEncoder::EncodeFixed64(uint64_t fn, uint64_t v){
     CheckSpace(10+8);
-    WriteTag(fn, WT_I32);
+    WriteTag(fn, WT_I64);
     WriteI64(v);
     return *this;
 }
@@ -321,7 +323,7 @@ uint64_t WireDecoder::ReadVarint() {
     return 0;
 }
 WireDecoder::pbfixed32 WireDecoder::ReadFixed32() {
-    pbfixed32 u;
+    pbfixed32 u{0};
     if (ps + sizeof(pbfixed32) <= pe) 
     {
         u.i32 = read_dword(ps);
@@ -332,7 +334,7 @@ WireDecoder::pbfixed32 WireDecoder::ReadFixed32() {
     return u;
 }
 WireDecoder::pbfixed64 WireDecoder::ReadFixed64() {
-    pbfixed64 u;
+    pbfixed64 u{0};
     if (ps + sizeof(pbfixed64) <= pe) 
     {
         u.i64 = read_qword(ps);
@@ -345,7 +347,6 @@ WireDecoder::pbfixed64 WireDecoder::ReadFixed64() {
 
 
 int32_t WireDecoder::DecodeInt32() {
-    uint64_t v;
     switch (wt) {
     case WT_VARINT:
         return (int32_t)ReadVarint();
@@ -540,13 +541,14 @@ uint32_t WireDecoder::DecodeFixed32() {
     return 0;
 }
 
-DecodeRepTempl(Sfix32, int32_t, WT_I32, KeepCV, ReadFixed32().i32)
-DecodeRepTempl(Fix32, uint32_t, WT_I32, KeepCV, ReadFixed32().i32)
+DecodeRepTempl(Sfixed32, int32_t, WT_I32, KeepCV, ReadFixed32().i32)
+DecodeRepTempl(Fixed32, uint32_t, WT_I32, KeepCV, ReadFixed32().i32)
 DecodeRepTempl(Float, float,    WT_I32, KeepCV, ReadFixed32().f)
-DecodeRepTempl(Sfix64, int64_t, WT_I64, KeepCV, ReadFixed64().i64)
-DecodeRepTempl(Fix64, uint64_t, WT_I64, KeepCV, ReadFixed64().i64)
+DecodeRepTempl(Sfixed64, int64_t, WT_I64, KeepCV, ReadFixed64().i64)
+DecodeRepTempl(Fixed64, uint64_t, WT_I64, KeepCV, ReadFixed64().i64)
 DecodeRepTempl(Double, double,  WT_I64, KeepCV, ReadFixed64().d)
 
+DecodeRepTempl(Bool, bool, WT_VARINT, KeepCV, ReadVarint())
 DecodeRepTempl(Int64, int64_t,  WT_VARINT, KeepCV, ReadVarint())
 DecodeRepTempl(Uint64, uint64_t,  WT_VARINT, KeepCV, ReadVarint())
 DecodeRepTempl(Int32, int32_t,  WT_VARINT, KeepCV, ReadVarint())

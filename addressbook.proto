@@ -44,9 +44,7 @@ message Person {
     PhoneType type = 2;
   }
 
-  repeated PhoneNumber phones = 4;
-
-  google.protobuf.Timestamp last_updated = 5;
+  PhoneNumber phones = 4;
 }
 
 // Our address book file is just one of these.
@@ -54,3 +52,13 @@ message AddressBook {
   repeated Person people = 1;
 }
 // [END messages]
+
+
+message Test1 {
+  string    name = 1;
+  repeated  int64     age = 2;
+  fixed64   f64 = 3;
+  fixed32   f32 = 4;
+  double    money = 5;
+  sint64    en = 6;
+}

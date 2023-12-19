@@ -13,33 +13,36 @@ import (
 )
 
 type typeMapper struct {
-	cpptype string
-	method  string
+	cpptype         string
+	decodeMethod    string
+	decodeRepMethod string
+	encodeMethod    string
+	encodeRepMethod string
 }
 
 var protoNative = map[protoreflect.Kind]typeMapper{
-	protoreflect.BoolKind:   {"bool", "DecodeBool()"},
-	protoreflect.Int32Kind:  {"int32_t", "DecodeInt32()"},
-	protoreflect.Sint32Kind: {"int32_t", "DecodeSint32()"},
-	protoreflect.Uint32Kind: {"uint32_t", "DecodeUint32()"},
-	protoreflect.Int64Kind:  {"int64_t", "DecodeInt64()"},
-	protoreflect.Sint64Kind: {"int64_t", "DecodeSint64()"},
-	protoreflect.Uint64Kind: {"uint64_t", "DecodeUint64()"},
+	protoreflect.BoolKind:   {"bool", "DecodeBool()", "DecodeRepBool(%s_)", "EncodeBool(%d, %s_)", "EncodeRepBool(%d, %s_)"},
+	protoreflect.Int32Kind:  {"int32_t", "DecodeInt32()", "DecodeRepInt32(%s_)", "EncodeInt32(%d, %s_)", "EncodeRepInt32(%d, %s_)"},
+	protoreflect.Sint32Kind: {"int32_t", "DecodeSint32()", "DecodeRepSint32(%s_)", "EncodeSint32(%d, %s_)", "EncodeRepSint32(%d, %s_)"},
+	protoreflect.Uint32Kind: {"uint32_t", "DecodeUint32()", "DecodeRepUint32(%s_)", "EncodeUint32(%d, %s_)", "EncodeRepUint32(%d, %s_)"},
+	protoreflect.Int64Kind:  {"int64_t", "DecodeInt64()", "DecodeRepInt64(%s_)", "EncodeInt64(%d, %s_)", "EncodeRepInt64(%d, %s_)"},
+	protoreflect.Sint64Kind: {"int64_t", "DecodeSint64()", "DecodeRepSint64(%s_)", "EncodeSint64(%d, %s_)", "EncodeRepSint64(%d, %s_)"},
+	protoreflect.Uint64Kind: {"uint64_t", "DecodeUint64()", "DecodeRepUint64(%s_)", "EncodeUint64(%d, %s_)", "EncodeRepUint64(%d, %s_)"},
 
-	protoreflect.Sfixed32Kind: {"int32_t", "DecodeSFixed32()"},
-	protoreflect.Fixed32Kind:  {"uint32_t", "DecodeFixed32()"},
-	protoreflect.Sfixed64Kind: {"int64_t", "DecodeSFixed64()"},
-	protoreflect.Fixed64Kind:  {"uint64_t", "DecodeFixed64()"},
+	protoreflect.Sfixed32Kind: {"int32_t", "DecodeSfixed32()", "DecodeRepSfixed32(%s_)", "EncodeSfixed32(%d, %s_)", "EncodeRepSfixed32(%d, %s_)"},
+	protoreflect.Fixed32Kind:  {"uint32_t", "DecodeFixed32()", "DecodeRepFixed32(%s_)", "EncodeFixed32(%d, %s_)", "EncodeRepFixed32(%d, %s_)"},
+	protoreflect.Sfixed64Kind: {"int64_t", "DecodeSfixed64()", "DecodeRepSfixed64(%s_)", "EncodeSfixed64(%d, %s_)", "EncodeRepSfixed64(%d, %s_)"},
+	protoreflect.Fixed64Kind:  {"uint64_t", "DecodeFixed64()", "DecodeRepFixed64(%s_)", "EncodeFixed64(%d, %s_)", "EncodeRepFixed64(%d, %s_)"},
 
-	protoreflect.FloatKind:  {"float", "DecodeFloat()"},
-	protoreflect.DoubleKind: {"double", "DecodeDouble()"},
-	protoreflect.StringKind: {"std::string", "DecodeString()"},
-	protoreflect.BytesKind:  {"std::vector<uint8_t>", "DecodeByte()"},
+	protoreflect.FloatKind:  {"float", "DecodeFloat()", "DecodeRepFloat(%s_)", "EncodeFloat(%d, %s_)", "EncodeRepFloat(%d, %s_)"},
+	protoreflect.DoubleKind: {"double", "DecodeDouble()", "DecodeRepDouble(%s_)", "EncodeDouble(%d, %s_)", "EncodeRepDouble(%d, %s_)"},
+	protoreflect.StringKind: {"std::string", "DecodeString()", "", "EncodeString(%d, %s_)", ""},
+	protoreflect.BytesKind:  {"std::vector<uint8_t>", "DecodeByte()", "", "EncodeBytes(%d, %s_)", ""},
 }
 
 var protoCustom = map[protoreflect.Kind]typeMapper{
-	protoreflect.EnumKind:    {"", ""},
-	protoreflect.MessageKind: {"", ""},
+	protoreflect.EnumKind:    {"", "", "", "", ""},
+	protoreflect.MessageKind: {"", "", "", "", ""},
 }
 
 const headerInclues = `
@@ -132,7 +135,7 @@ func dumpClass(sh *stream, scpp *stream, msg *protogen.Message) {
 	defer scpp.ScopeOut()
 
 	sh.Printf("class %s {\n", msg.Desc.Name())
-	sh.Printf("private:\n")
+	sh.Printf("public:\n")
 
 	sh.Enter()
 	for _, enum := range msg.Enums {
@@ -166,6 +169,25 @@ func dumpClass(sh *stream, scpp *stream, msg *protogen.Message) {
 	sh.Leave()
 	sh.Printf("};\n")
 
+	scpp.Printf("std::string %s::Serialize() const \n", scpp.CppScopeLocate())
+	scpp.Printf("{\n")
+	scpp.Enter()
+	scpp.Printf("WireEncoder encoder;\n")
+	for _, field := range msg.Fields {
+		if f, ok := protoNative[field.Desc.Kind()]; ok {
+			if field.Desc.Cardinality() == protoreflect.Repeated {
+				s := fmt.Sprintf("\tencoder.%s;\n", f.encodeRepMethod)
+				scpp.Printf(s, field.Desc.Number(), field.Desc.Name())
+			} else {
+				s := fmt.Sprintf("\tencoder.%s;\n", f.encodeMethod)
+				scpp.Printf(s, field.Desc.Number(), field.Desc.Name())
+			}
+		}
+	}
+	scpp.Printf("return encoder.Dump();")
+	scpp.Leave()
+	scpp.Printf("}\n")
+
 	scpp.Printf("bool %s::Unserialize(std::string_view sv)\n", scpp.CppScopeLocate())
 	scpp.Printf("{\n")
 	scpp.Enter()
@@ -179,22 +201,34 @@ func dumpClass(sh *stream, scpp *stream, msg *protogen.Message) {
 		scpp.Printf("case %d:\n", field.Desc.Number())
 		if f, ok := protoNative[field.Desc.Kind()]; ok {
 			if field.Desc.Cardinality() == protoreflect.Repeated {
-				scpp.Printf("\tthis->%s_.push_back(decoder.%s);\n", field.Desc.Name(), f.method)
+				if f.decodeRepMethod == "" {
+					scpp.Printf("\tthis->%s_.push_back(decoder.%s);\n", field.Desc.Name(), f.decodeMethod)
+				} else {
+					s := fmt.Sprintf("\tdecoder.%s;\n", f.decodeRepMethod)
+					log.Println(s)
+					scpp.Printf(s, field.Desc.Name())
+				}
 			} else {
-				scpp.Printf("\tthis->%s_ = decoder.%s;\n", field.Desc.Name(), f.method)
+				scpp.Printf("\tthis->%s_ = decoder.%s;\n", field.Desc.Name(), f.decodeMethod)
 			}
 		} else if field.Desc.Kind() == protoreflect.EnumKind {
 			ename := scpp.DescopedName(string(field.Desc.Enum().FullName().Name()))
 			scpp.Printf("\tthis->%s_ = (%s)decoder.DecodeEnum();\n", field.Desc.Name(), ename)
 		} else if field.Desc.Kind() == protoreflect.MessageKind {
-			scpp.Printf("\tauto sv = decoder.DecodeSubmessage();\n")
-			scpp.Printf("\tthis->%s_.Unserialize(sv);\n", field.Desc.Name())
+			if field.Desc.Cardinality() == protoreflect.Repeated {
+				scpp.Printf("{ %s v; v.Unserialize(decoder.DecodeSubmessage());\n",
+					scpp.DescopedName(string(field.Desc.Message().FullName())))
+				scpp.Printf("\tthis->%s_.push_back(v);}\n", field.Desc.Name())
+			} else {
+				scpp.Printf("\tthis->%s_.Unserialize(decoder.DecodeSubmessage());\n", field.Desc.Name())
+			}
 		}
 
 		scpp.Printf("break;\n")
 	}
 	scpp.Printf("default:\n")
 	scpp.Printf("\tdecoder.DecodeUnknown();\n")
+	scpp.Printf("break;\n")
 	scpp.Leave()
 	scpp.Printf("}\n")
 	scpp.Leave()
