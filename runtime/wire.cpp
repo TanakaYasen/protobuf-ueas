@@ -47,12 +47,17 @@ static inline uint8_t *write_qword(uint8_t data[], uint64_t v)
 WireEncoder& WireEncoder::EncodeRep##suf(uint64_t fn, const std::vector<ct>&vs) {\
     if (vs.size() == 0) return *this; \
     WriteTag(fn, WT_LEN); \
-    size_t len = vs.size(); \
-    WriteVarint(len); \
+    off64_t offold = pcur-ps; \
     for (auto v : vs) { \
         auto q = CV(v); \
         writer; \
     } \
+    size_t totallen = pcur-(ps+offold); \
+    size_t lenvarint = VarintLen(totallen); \
+    uint8_t *pold = ps+offold;\
+    memmove(pold+lenvarint, pold, totallen); \
+    pcur = pold; WriteVarint(totallen); /*patch back*/\
+    pcur += totallen; \
     return *this; \
 }
 
@@ -108,6 +113,7 @@ WireEncoder& WireEncoder::WriteTag(uint64_t fn, WireType wt){
     return WriteVarint(tag);
 }
 WireEncoder& WireEncoder::WriteVarint(uint64_t v){
+    CheckSpace(10);
     while (v > 0x7f) {
         *pcur++ = (v & 0x7f) | 0x80;
         v >>= 7;
@@ -115,11 +121,23 @@ WireEncoder& WireEncoder::WriteVarint(uint64_t v){
     *pcur++ = v & 0x7f;
     return *this;
 }
+
+size_t WireEncoder::VarintLen(uint64_t v){
+    size_t off = 0;
+    while (v > 0x7f) {
+        ++off; v >>= 7;
+    }
+    ++off;
+    return off;
+}
+
 WireEncoder& WireEncoder::WriteI32(uint32_t v){
+    CheckSpace(4);
     pcur = write_dword(pcur, v);
     return *this;
 }
 WireEncoder& WireEncoder::WriteI64(uint64_t v){
+    CheckSpace(8);
     pcur = write_qword(pcur, v);
     return *this;
 }

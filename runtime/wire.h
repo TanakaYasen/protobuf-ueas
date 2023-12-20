@@ -46,6 +46,8 @@ class WireEncoder {
     WireEncoder& WriteI32(uint32_t);
     WireEncoder& WriteI64(uint64_t);
 
+    static size_t VarintLen(uint64_t);
+
     void CheckSpace(size_t);
 
 public:

@@ -52,6 +52,12 @@ int main() {
     t1.money_ = 4.58;
     t1.f64_ = 323;
     t1.en_ = 78;
+	for (int i = 1; i < 1000; i++) {
+		t1.age_.push_back(i*3+5);
+	}
+	t1.age_.push_back(123);
+	t1.age_.push_back(87);
+	t1.age_.push_back(1983217);
 
     auto sss = t1.Serialize();
     DumpHex(sss);

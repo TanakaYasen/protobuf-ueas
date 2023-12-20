@@ -12,14 +12,6 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-type typeMapper struct {
-	cpptype         string
-	decodeMethod    string
-	decodeRepMethod string
-	encodeMethod    string
-	encodeRepMethod string
-}
-
 var protoNative = map[protoreflect.Kind]typeMapper{
 	protoreflect.BoolKind:   {"bool", "DecodeBool()", "DecodeRepBool(%s_)", "EncodeBool(%d, %s_)", "EncodeRepBool(%d, %s_)"},
 	protoreflect.Int32Kind:  {"int32_t", "DecodeInt32()", "DecodeRepInt32(%s_)", "EncodeInt32(%d, %s_)", "EncodeRepInt32(%d, %s_)"},
@@ -184,7 +176,7 @@ func dumpClass(sh *stream, scpp *stream, msg *protogen.Message) {
 			}
 		}
 	}
-	scpp.Printf("return encoder.Dump();")
+	scpp.Printf("return encoder.Dump();\n")
 	scpp.Leave()
 	scpp.Printf("}\n")
 

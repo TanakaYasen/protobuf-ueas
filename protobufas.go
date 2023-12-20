@@ -39,6 +39,29 @@ func main() {
 	})
 }
 
-func main2() {
-	buildCppCode()
+func main33() {
+	debug.SetTraceback("crash")
+
+	logFile, err := os.OpenFile("./app.log", os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer logFile.Close()
+
+	log.SetOutput(logFile)
+
+	protogen.Options{}.Run(func(plugin *protogen.Plugin) error {
+
+		log.Printf(plugin.Request.GetParameter())
+
+		for _, f := range plugin.Files {
+
+			if !f.Generate {
+				continue
+			}
+			generateUeas(plugin, f)
+		}
+
+		return nil
+	})
 }

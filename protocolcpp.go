@@ -24,24 +24,6 @@ private:
 {{end}}
 `
 
-type FieldStruct struct {
-	TypeName  string
-	FieldName string
-}
-
-type ClassDef struct {
-	ClassName string
-	TypeName  string
-	Fields    []FieldStruct
-	Nested    []*ClassDef
-}
-
-type CppStruct struct {
-	SourceFile        string
-	BracketIncludings []string
-	ClassDefinations  []ClassDef
-}
-
 func buildCppCode() {
 	//var cs = cppStruct{}
 
@@ -50,13 +32,9 @@ func buildCppCode() {
 		return
 	}
 
-	var cpp = CppStruct{
+	var cpp = ParsedStruct{
 		SourceFile:        "game.proto",
 		BracketIncludings: []string{"cstdio", "cstdint"},
-		ClassDefinations: []ClassDef{
-			{"Zoo", "Game::Zoo", nil, nil},
-			{"Animal", "Game::Animal", nil, nil},
-		},
 	}
 	templ.Execute(os.Stdout, cpp)
 }
