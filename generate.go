@@ -161,18 +161,36 @@ func dumpClass(sh *stream, scpp *stream, msg *protogen.Message) {
 	sh.Leave()
 	sh.Printf("};\n")
 
-	scpp.Printf("std::string %s::Serialize() const \n", scpp.CppScopeLocate())
+	scpp.Printf("std::string %s::Serialize() const\n", scpp.CppScopeLocate())
 	scpp.Printf("{\n")
 	scpp.Enter()
 	scpp.Printf("WireEncoder encoder;\n")
 	for _, field := range msg.Fields {
 		if f, ok := protoNative[field.Desc.Kind()]; ok {
 			if field.Desc.Cardinality() == protoreflect.Repeated {
-				s := fmt.Sprintf("\tencoder.%s;\n", f.encodeRepMethod)
-				scpp.Printf(s, field.Desc.Number(), field.Desc.Name())
+				if f.encodeRepMethod == "" {
+					scpp.Printf("\tfor (const auto &v_ : %s_) {\n", field.Desc.Name())
+					s := fmt.Sprintf("\t\tencoder.%s;\n", f.encodeMethod)
+					scpp.Printf(s, field.Desc.Number(), "v")
+					scpp.Printf("\t}\n")
+				} else {
+					s := fmt.Sprintf("\tencoder.%s;\n", f.encodeRepMethod)
+					scpp.Printf(s, field.Desc.Number(), field.Desc.Name())
+				}
 			} else {
 				s := fmt.Sprintf("\tencoder.%s;\n", f.encodeMethod)
 				scpp.Printf(s, field.Desc.Number(), field.Desc.Name())
+			}
+		} else if field.Desc.Kind() == protoreflect.EnumKind {
+			//ename := scpp.DescopedName(string(field.Desc.Enum().FullName().Name()))
+			scpp.Printf("\tencoder.EncodeEnum(%d, (uint64_t)%s_);\n", field.Desc.Number(), field.Desc.Name())
+		} else if field.Desc.Kind() == protoreflect.MessageKind {
+			if field.Desc.Cardinality() == protoreflect.Repeated {
+				scpp.Printf("\tfor (const auto &v_ : %s_) {\n", field.Desc.Name())
+				scpp.Printf("\tauto v = v_.Serialize() ; encoder.EncodeString(%d, v);\n", field.Desc.Number())
+				scpp.Printf("\t}\n")
+			} else {
+				scpp.Printf("\t{ auto v = %s_.Serialize() ; encoder.EncodeString(%d, v);}\n", field.Desc.Name(), field.Desc.Number())
 			}
 		}
 	}

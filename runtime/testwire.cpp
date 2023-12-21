@@ -52,12 +52,20 @@ int main() {
     t1.money_ = 4.58;
     t1.f64_ = 323;
     t1.en_ = 78;
-	for (int i = 1; i < 1000; i++) {
+	for (int i = 1; i < 10; i++) {
 		t1.age_.push_back(i*3+5);
 	}
 	t1.age_.push_back(123);
 	t1.age_.push_back(87);
 	t1.age_.push_back(1983217);
+	t1.test2_.i32_=255;
+	t1.test2_.u64_=255;
+	t1.test2_.d_=123.456;
+	t1.test2_.f_=1.4142;
+	t1.test2_.fix_=0xff00eeaa;
+
+	for (int i = 0; i < 2; ++i)
+		t1.alias_.push_back("game");
 
     auto sss = t1.Serialize();
     DumpHex(sss);
@@ -72,5 +80,11 @@ int main() {
         << std::endl << t2.en_
         << std::endl;
 
+	for (auto &v : t2.age_) {
+		std::cout << v << std::endl;
+	}
+	for (auto &v : t2.alias_) {
+		std::cout << v << std::endl;
+	}
     return 0;
 }

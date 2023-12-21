@@ -187,7 +187,12 @@ WireEncoder& WireEncoder::EncodeBool(uint64_t fn, bool v){
     WriteVarint((uint64_t)v);
     return *this;
 }
-
+WireEncoder& WireEncoder::EncodeEnum(uint64_t fn, unsigned v){
+    CheckSpace(10+10);
+    WriteTag(fn, WT_VARINT);
+    WriteVarint((uint64_t)v);
+    return *this;
+}
 
 //LEN
 WireEncoder& WireEncoder::EncodeString(uint64_t fn, const std::string&s){
