@@ -13,11 +13,21 @@ type FieldInfo struct {
 	DecodeMethod string
 }
 
+type EnumValue struct {
+	EName string
+	ENum  int
+}
+type EnumDef struct {
+	DefName string
+	Values  []EnumValue
+}
+
 type ClassDef struct {
 	ClassName string
 	TypeName  string
 	Fields    []*FieldInfo
 	Nested    []*ClassDef
+	Enums     []*EnumDef
 }
 
 type ParsedStruct struct {
@@ -28,6 +38,7 @@ type ParsedStruct struct {
 	CppIncludes       []string
 	BracketIncludings []string
 	ClassDefinations  []*ClassDef
+	Enums             []*EnumDef
 }
 
 type typeMapper struct {

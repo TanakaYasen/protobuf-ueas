@@ -1,10 +1,15 @@
 package main
 
 import (
+	"fmt"
+	"log"
 	"os"
+	"path"
+	"path/filepath"
 	"text/template"
 
 	"google.golang.org/protobuf/compiler/protogen"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 const hTemplCode = `
@@ -13,26 +18,42 @@ const hTemplCode = `
 
 #include <cstdlib>
 #include <cstdint>
+#include <string>
+#include <vector>
 
 //as decl
 class asIScriptEngine;	//engine
 class asIScriptGeneric;	//gen
 
-namespace {{.ProtoName}} {
-{{ range .ClassDefinations}}
+namespace {{.PackageName}} {
 
+{{ define "message" }}
+#pragma region "{{.ClassName}}"
 class {{.ClassName}} {
 public:
+	{{range .Enums}}
+	enum {{.DefName}}{ 
+		{{range .Values}}{{.EName}} = {{.ENum}},
+		{{end}}
+	};
+	{{end}}
+
+	{{if gt (len .Nested) 0}}
+	//nested messages
+	{{range .Nested}}
+		{{ template "message" .}}
+	{{end}}
+	{{end}}
+
 	{{range .Fields}}
 	{{.TypeName}} Get{{.FieldName}}() const;
 	void Set{{.FieldName}}({{.TypeName}} value);
 	{{end}}
 
-	//nested messages
-	{{range .Messages}}
-	{{end}}
-
+	std::string Serialize() const;
+	bool Unserialize(const uint8_t*_data, size_t len);
 	void RegisterToAngelScript(asIScriptEngine *engine);
+
 private:
 	bool 	Valid;
 	uint64_t	DirtyMask;
@@ -41,11 +62,15 @@ private:
 	{{.TypeName}} {{.FieldName}}_;
 	{{end}}
 };
+#pragma endregion
+{{ end }}
 
+{{ range .ClassDefinations}}
+	{{ template "message" . }}
 {{end}}
 
-
 void RegisterToAngelScript(asIScriptEngine *engine);
+
 }
 `
 
@@ -57,42 +82,203 @@ const cppTemplCode = `
 {{range .BracketIncludings}}#include <{{.}}>
 {{end}}
 
-{{ range .ClassDefinations}}
+namespace {{.PackageName}} {
+	{{ range .ClassDefinations}}
 
-#pragma region "{{.ClassName}}"
+	#pragma region "{{.ClassName}}"
 
-std::string {{.ClassName}}::Serialize() const {
-	return "";
-}
+	std::string {{.ClassName}}::Serialize() const {
+	{{if gt (len .Fields) 0}}
+		WireEncoder encoder();
+		encoder
+		{{range .Fields}}	.{{.EncodeMethod}}({{.Number}}, {{.FieldName}}_);
+		{{end}}
+		return encoder.Dump();
+	{{else}}
+		return std::string{};
+	{{end}}
+	}
 
-bool {{.ClassName}}::Unserialize(std::string_view _view) {
-	return true;
-}
+	bool {{.ClassName}}::Unserialize(const uint8_t *_data, size_t len) {
+	{{if gt (len .Fields) 0}}
+		uint64 fn = 0;
+		WireDecoder decoder(data, len);
+		while ((fn = decoder.ReadTag()) && decoder.IsOk()) {
+			switch(fn) { {{range .Fields}}
+			case {{.Number}}:
+				{{.FieldName}} = {{.DecodeMethod}}();
+				break;{{end}}
+			default:
+				break;
+			}
+		}
+		return decoder.Ok();
+	{{else}}
+		return true;
+	{{end}}
+	}
 
-{{end}}
+	{{end}}
 
-#pragma endregion
+	#pragma endregion
 
-void RegisterToAngelScript(asIScriptEngine *engine) {
-{{ range .ClassDefinations}}
-	{{.ClassName}}::RegisterToAngelScript(engine);
-{{end}}
+	void RegisterToAngelScript(asIScriptEngine *engine) {
+	{{ range .ClassDefinations}}
+		{{.ClassName}}::RegisterToAngelScript(engine);
+	{{end}}
+	}
+
 }
 `
 
+var asprotoNative = map[protoreflect.Kind]typeMapper{
+	protoreflect.BoolKind:   {"bool", "DecodeBool", "DecodeRepBool", "EncodeBool", "EncodeRepBool"},
+	protoreflect.Int32Kind:  {"int32_t", "DecodeInt32", "DecodeRepInt32", "EncodeInt32", "EncodeRepInt32"},
+	protoreflect.Sint32Kind: {"int32_t", "DecodeSint32", "DecodeRepSint32", "EncodeSint32", "EncodeRepSint32"},
+	protoreflect.Uint32Kind: {"uint32_t", "DecodeUint32", "DecodeRepUint32", "EncodeUint32", "EncodeRepUint32"},
+	protoreflect.Int64Kind:  {"int64_t", "DecodeInt64", "DecodeRepInt64", "EncodeInt64", "EncodeRepInt64"},
+	protoreflect.Sint64Kind: {"int64_t", "DecodeSint64", "DecodeRepSint64", "EncodeSint64", "EncodeRepSint64"},
+	protoreflect.Uint64Kind: {"uint64_t", "DecodeUint64", "DecodeRepUint64", "EncodeUint64", "EncodeRepUint64"},
+
+	protoreflect.Sfixed32Kind: {"int32_t", "DecodeSfixed32", "DecodeRepSfixed32", "EncodeSfixed32", "EncodeRepSfixed32"},
+	protoreflect.Fixed32Kind:  {"uint32_t", "DecodeFixed32", "DecodeRepFixed32", "EncodeFixed32", "EncodeRepFixed32"},
+	protoreflect.Sfixed64Kind: {"int64_t", "DecodeSfixed64", "DecodeRepSfixed64", "EncodeSfixed64", "EncodeRepSfixed64"},
+	protoreflect.Fixed64Kind:  {"uint64_t", "DecodeFixed64", "DecodeRepFixed64", "EncodeFixed64", "EncodeRepFixed64"},
+
+	protoreflect.FloatKind:  {"float", "DecodeFloat", "DecodeRepFloat", "EncodeFloat", "EncodeRepFloat"},
+	protoreflect.DoubleKind: {"double", "DecodeDouble", "DecodeRepDouble", "EncodeDouble", "EncodeRepDouble"},
+	protoreflect.StringKind: {"std::string", "DecodeString", "", "EncodeString", ""},
+	protoreflect.BytesKind:  {"std::vector<uint8_t>", "DecodeByte", "", "EncodeBytes", ""},
+}
+
+func asparseMessageField(classDef *ClassDef, fd protoreflect.FieldDescriptor, scopeTracker *scopeResolver) {
+	var isRepeated = fd.Cardinality() == protoreflect.Repeated
+	var formater string = "%s"
+	if isRepeated {
+		formater = "std::vector<%s>"
+	}
+	fieldInfo := &FieldInfo{
+		FieldName: string(fd.Name()),
+		Number:    uint64(fd.Number()),
+	}
+
+	if n, ok := asprotoNative[fd.Kind()]; ok {
+		fieldInfo.TypeName = fmt.Sprintf(formater, n.cpptype)
+		if isRepeated {
+			fieldInfo.EncodeMethod = n.encodeRepMethod
+			fieldInfo.DecodeMethod = n.decodeRepMethod
+		} else {
+			fieldInfo.EncodeMethod = n.encodeMethod
+			fieldInfo.DecodeMethod = n.decodeMethod
+		}
+	} else {
+		if fd.Kind() == protoreflect.MessageKind {
+
+			cppTypeName := scopeTracker.DescopedName(string(fd.Message().FullName()))
+			fieldInfo.TypeName = fmt.Sprintf(formater, cppTypeName)
+
+		} else if fd.Kind() == protoreflect.EnumKind {
+
+			cppTypeName := scopeTracker.DescopedName(string(fd.Enum().FullName()))
+			fieldInfo.TypeName = fmt.Sprintf(formater, cppTypeName)
+
+		} else {
+
+		}
+	}
+
+	classDef.Fields = append(classDef.Fields, fieldInfo)
+}
+
+func asparseEnum(e *protogen.Enum) *EnumDef {
+	var res = new(EnumDef)
+	res.DefName = string(e.Desc.Name())
+	for _, v := range e.Values {
+		res.Values = append(res.Values, EnumValue{string(v.Desc.Name()), 0})
+	}
+	return res
+}
+
+func asparseMessageClass(msg *protogen.Message, scopeTracker *scopeResolver) *ClassDef {
+	var newClass *ClassDef = new(ClassDef)
+	newClass.ClassName = string(msg.Desc.FullName().Name())
+
+	scopeTracker.ScopeIn(newClass.ClassName)
+
+	for _, subMessage := range msg.Messages {
+		var subClass = asparseMessageClass(subMessage, scopeTracker)
+		newClass.Nested = append(newClass.Nested, subClass)
+	}
+
+	for _, subEnum := range msg.Enums {
+		newClass.Enums = append(newClass.Enums, asparseEnum(subEnum))
+	}
+
+	for _, field := range msg.Fields {
+		asparseMessageField(newClass, field.Desc, scopeTracker)
+	}
+
+	scopeTracker.ScopeOut()
+	return newClass
+}
+
 func generateAs(gen *protogen.Plugin, file *protogen.File) {
+	pathStr := file.Desc.Path()
+	var baseName string = path.Base(file.Desc.Path())
+	baseName = baseName[:len(baseName)-len(filepath.Ext(baseName))]
+
+	OutputDir := path.Join("generated")
+	outputHeader := filepath.Join(OutputDir, baseName+".h")
+	outputCpp := filepath.Join(OutputDir, baseName+".cpp")
+	scoper := new(scopeResolver)
+
+	pdata := ParsedStruct{
+		SourceFile:  pathStr,
+		ProtoName:   baseName,
+		PackageName: *file.Proto.Package,
+		HIncludes: []string{
+			"CoreMinimal.h",
+			"Container/TArray.h",
+			"Container/TMap.h",
+		},
+		CppIncludes: []string{
+			baseName + ".h",
+			"uewire.h",
+		},
+	}
+
+	outputCppFile, err := os.OpenFile(outputCpp, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0644)
+	if err != nil {
+		log.Println(err.Error())
+		return
+	}
+	defer outputCppFile.Close()
+
+	outputHeaderFile, err := os.OpenFile(outputHeader, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0644)
+	if err != nil {
+		log.Println(err.Error())
+		return
+	}
+	defer outputHeaderFile.Close()
+
+	scoper.ScopeIn(*file.Proto.Package)
+	for _, msg := range file.Messages {
+		pdata.ClassDefinations = append(pdata.ClassDefinations, asparseMessageClass(msg, scoper))
+	}
+	scoper.ScopeOut()
+
 	templ, err := template.New("ash").Parse(hTemplCode)
 	if err != nil {
+		log.Fatalln(err)
 		return
 	}
+	templ.Execute(outputHeaderFile, pdata)
 
-	templ, err = template.New("ascpp").Parse(cppTemplCode)
+	templ, err = templ.New("ascpp").Parse(cppTemplCode)
 	if err != nil {
+		log.Fatalln(err)
 		return
 	}
+	templ.Execute(outputCppFile, pdata)
 
-	var cpp = ParsedStruct{
-		SourceFile: "game.proto",
-	}
-	templ.Execute(os.Stdout, cpp)
 }
