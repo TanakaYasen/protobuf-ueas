@@ -11,6 +11,12 @@ type FieldInfo struct {
 	Number       uint64
 	EncodeMethod string
 	DecodeMethod string
+	EncodeCode   string
+	DecodeCode   string
+
+	DirtyIndex int
+	Setter     string
+	Getter     string
 }
 
 type EnumValue struct {
@@ -23,11 +29,12 @@ type EnumDef struct {
 }
 
 type ClassDef struct {
-	ClassName string
-	TypeName  string
-	Fields    []*FieldInfo
-	Nested    []*ClassDef
-	Enums     []*EnumDef
+	ClassName  string
+	TypeName   string
+	DirtyCount int
+	Fields     []*FieldInfo
+	Nested     []*ClassDef
+	Enums      []*EnumDef
 }
 
 type ParsedStruct struct {
@@ -42,7 +49,7 @@ type ParsedStruct struct {
 }
 
 type typeMapper struct {
-	cpptype         string
+	cppType         string
 	decodeMethod    string
 	decodeRepMethod string
 	encodeMethod    string

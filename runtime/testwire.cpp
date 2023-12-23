@@ -46,37 +46,11 @@ void DumpHex(const std::string &s) {
 
 int main() {
 
-    tutorial::Test1 t1, t2;
-    t1.name_ = "protobuf test";
-    t1.f32_ = 5676;
-    t1.money_ = 4.58;
-    t1.f64_ = 323;
-    t1.en_ = 78;
-	for (int i = 1; i < 10; i++) {
-		t1.age_.push_back(i*3+5);
-	}
-	t1.age_.push_back(123);
-	t1.age_.push_back(87);
-	t1.age_.push_back(1983217);
-	t1.test2_.i32_=255;
-	t1.test2_.u64_=255;
-	t1.test2_.d_=123.456;
-	t1.test2_.f_=1.4142;
-	t1.test2_.fix_=0xff00eeaa;
-
-	for (int i = 0; i < 2; ++i)
-		t1.alias_.push_back("game");
+	tutorial::Test1 t1;
+	t1.SetF32(322);
 
     auto sss = t1.Serialize();
     DumpHex(sss);
 
-    t2.Unserialize(std::string_view{(char*)sss.c_str(), sss.size()});
-
-	for (auto &v : t2.age_) {
-		std::cout << v << std::endl;
-	}
-	for (auto &v : t2.alias_) {
-		std::cout << v << std::endl;
-	}
     return 0;
 }

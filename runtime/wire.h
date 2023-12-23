@@ -69,7 +69,7 @@ public:
     template <typename T>
     WireEncoder& EncodeSubmessage(uint64_t fn, const T&msg) {
         // static_assert(std::is_base_of_v<T, >)
-        return EncodeString(msg.Serialize());
+        return EncodeString(fn, msg.Serialize());
     }
 
     //I32
@@ -98,6 +98,7 @@ public:
     WireEncoder& EncodeRepSint64(uint64_t fn, const std::vector<int64_t>&);
     WireEncoder& EncodeRepUint64(uint64_t fn, const std::vector<uint64_t>&);
 
+    WireEncoder& EncodeRepString(uint64_t fn, const std::vector<std::string>&vs);
 };
 
 
@@ -175,6 +176,6 @@ public:
     DecodeRepDecl(Fixed64, uint64_t);
     DecodeRepDecl(Double, double);
 #undef DecodeRepDecl
-
+    void DecodeRepString(std::vector<std::string>&);
 };
 

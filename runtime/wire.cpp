@@ -52,6 +52,7 @@ WireEncoder& WireEncoder::EncodeRep##suf(uint64_t fn, const std::vector<ct>&vs) 
         auto q = CV(v); \
         writer; \
     } \
+    CheckSpace(10); \
     size_t totallen = pcur-(ps+offold); \
     size_t lenvarint = VarintLen(totallen); \
     uint8_t *pold = ps+offold;\
@@ -258,6 +259,22 @@ WireEncoder& WireEncoder::EncodeDouble(uint64_t fn, double v){
     return *this;
 }
 
+WireEncoder& WireEncoder::EncodeRepString(uint64_t fn, const std::vector<std::string>&vs) {
+    if (vs.size() == 0) return *this; \
+    WriteTag(fn, WT_LEN); \
+    off64_t offold = pcur-ps; \
+    for (const auto &v : vs) { \
+        EncodeString(fn, v); \
+    } \
+    CheckSpace(10); \
+    size_t totallen = pcur-(ps+offold); \
+    size_t lenvarint = VarintLen(totallen); \
+    uint8_t *pold = ps+offold;\
+    memmove(pold+lenvarint, pold, totallen); \
+    pcur = pold; WriteVarint(totallen); /*patch back*/\
+    pcur += totallen; \
+    return *this; \
+}
 
 EncodeRepTempl(Sfixed32, int32_t, KeepCV, pbfixed32 u; u.i32=q; WriteI32(u.i32))
 EncodeRepTempl(Fixed32, uint32_t, KeepCV, pbfixed32 u; u.i32=q; WriteI32(u.i32))
@@ -652,4 +669,25 @@ void WireDecoder::DecodeUnknown() {
     default:
         break;
     }
+}
+
+
+void WireDecoder::DecodeRepString(std::vector<std::string>& values) {\
+    if (wt == WT_LEN) { \
+        uint64_t len = ReadVarint(); \
+        if (!valid) { \
+            return;\
+        } \
+        const uint8_t* sential = ps + len; \
+        while (ps < sential) \
+        { \
+            uint64_t len = ReadVarint(); \
+            if (valid) \
+            { \
+                values.emplace_back(ReadString(len)); \
+            }
+            else \
+                break; \
+        } \
+    } \
 }

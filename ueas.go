@@ -135,7 +135,7 @@ func parseMessageField(classDef *ClassDef, fd protoreflect.FieldDescriptor) {
 	}
 
 	if n, ok := ueasprotoNative[fd.Kind()]; ok {
-		fieldInfo.TypeName = fmt.Sprintf(formater, n.cpptype)
+		fieldInfo.TypeName = fmt.Sprintf(formater, n.cppType)
 		if isRepeated {
 			fieldInfo.EncodeMethod = n.encodeRepMethod
 			fieldInfo.DecodeMethod = n.decodeRepMethod
@@ -183,10 +183,9 @@ func generateUeas(gen *protogen.Plugin, file *protogen.File) {
 
 	OutputDir := path.Join("Protobuf", "ProtobufUEAS", "Source", "Generated")
 	outputHeader := filepath.Join(OutputDir, baseName+".h")
-
 	outputCpp := filepath.Join(OutputDir, baseName+".cpp")
 
-	pdata := ParsedStruct{
+	pStruct := ParsedStruct{
 		SourceFile:  pathStr,
 		ProtoName:   baseName,
 		PackageName: *file.Proto.Package,
@@ -216,7 +215,7 @@ func generateUeas(gen *protogen.Plugin, file *protogen.File) {
 	defer outputHeaderFile.Close()
 
 	for _, msg := range file.Messages {
-		parseMessageClass(&pdata, msg)
+		parseMessageClass(&pStruct, msg)
 	}
 
 	templ, err := template.New("ueash").Parse(ueasHeaderTempl)
@@ -224,13 +223,13 @@ func generateUeas(gen *protogen.Plugin, file *protogen.File) {
 		log.Fatalln(err)
 		return
 	}
-	templ.Execute(outputHeaderFile, pdata)
+	templ.Execute(outputHeaderFile, pStruct)
 
 	templ, err = templ.New("ueascpp").Parse(ueasCppTempl)
 	if err != nil {
 		log.Fatalln(err)
 		return
 	}
-	templ.Execute(outputCppFile, pdata)
+	templ.Execute(outputCppFile, pStruct)
 
 }

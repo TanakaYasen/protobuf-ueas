@@ -95,9 +95,9 @@ func dumpField(s *stream, fd protoreflect.FieldDescriptor) {
 	var isRepeated = fd.Cardinality() == protoreflect.Repeated
 	if n, ok := protoNative[fd.Kind()]; ok {
 		if isRepeated {
-			s.Printf("std::vector<%s> %s_;\n", n.cpptype, fd.Name())
+			s.Printf("std::vector<%s> %s_;\n", n.cppType, fd.Name())
 		} else {
-			s.Printf("%s %s_;\n", n.cpptype, fd.Name())
+			s.Printf("%s %s_;\n", n.cppType, fd.Name())
 		}
 	} else {
 		if fd.Kind() == protoreflect.MessageKind {

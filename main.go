@@ -32,7 +32,7 @@ func main1() {
 			if !f.Generate {
 				continue
 			}
-			generateFile(plugin, f)
+			//generateFile(plugin, f)
 		}
 
 		return nil
