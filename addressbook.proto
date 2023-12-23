@@ -54,13 +54,12 @@ message AddressBook {
 // [END messages]
 
 message Test2 {
-  int32 i32 = 12;
   uint64   u64 = 1;
+  fixed64   fix=2;
   double    d = 5;
   float     f = 7;
-  fixed64   fix=2;
+  int32 i32 = 12;
 }
-
 
 message Test1 {
   string    name = 1;
@@ -71,4 +70,8 @@ message Test1 {
   sint64    en = 6;
   repeated string  alias = 7;
   Test2     test2 = 8;
+}
+
+message Empty {
+  
 }

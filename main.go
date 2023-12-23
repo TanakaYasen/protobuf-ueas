@@ -12,7 +12,7 @@ import (
 // Wire Protocol
 // https://protobuf.dev/programming-guides/encoding/
 
-func main() {
+func main1() {
 	debug.SetTraceback("crash")
 
 	logFile, err := os.OpenFile("./app.log", os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
@@ -39,7 +39,7 @@ func main() {
 	})
 }
 
-func main33() {
+func main() {
 	debug.SetTraceback("crash")
 
 	logFile, err := os.OpenFile("./app.log", os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
@@ -54,12 +54,12 @@ func main33() {
 
 		log.Printf(plugin.Request.GetParameter())
 
-		for _, f := range plugin.Files {
+		for _, file := range plugin.Files {
 
-			if !f.Generate {
+			if !file.Generate {
 				continue
 			}
-			generateUeas(plugin, f)
+			generateUeas(plugin, file)
 		}
 
 		return nil

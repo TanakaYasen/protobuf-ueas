@@ -1,2 +1,8 @@
 generated/
+
+Generated/
+
+.vscode/
 *.log
+
+a.out

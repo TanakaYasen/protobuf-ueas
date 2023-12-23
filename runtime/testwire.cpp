@@ -72,14 +72,6 @@ int main() {
 
     t2.Unserialize(std::string_view{(char*)sss.c_str(), sss.size()});
 
-    std::cout << std::endl << t2.name_
-        << std::endl
-        << std::endl << t2.f64_
-        << std::endl << t2.f32_
-        << std::endl << t2.money_
-        << std::endl << t2.en_
-        << std::endl;
-
 	for (auto &v : t2.age_) {
 		std::cout << v << std::endl;
 	}

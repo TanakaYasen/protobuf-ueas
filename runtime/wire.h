@@ -23,8 +23,6 @@ enum WireType {
     WT_I32 = 5,     //	fixed32, sfixed32, float
 };
 
-// Length-Delimited Records
-
 
 class WireEncoder {
     uint8_t *ps, *pe;
