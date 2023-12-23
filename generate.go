@@ -13,28 +13,23 @@ import (
 )
 
 var protoNative = map[protoreflect.Kind]typeMapper{
-	protoreflect.BoolKind:   {"bool", "DecodeBool()", "DecodeRepBool(%s_)", "EncodeBool(%d, %s_)", "EncodeRepBool(%d, %s_)"},
-	protoreflect.Int32Kind:  {"int32_t", "DecodeInt32()", "DecodeRepInt32(%s_)", "EncodeInt32(%d, %s_)", "EncodeRepInt32(%d, %s_)"},
-	protoreflect.Sint32Kind: {"int32_t", "DecodeSint32()", "DecodeRepSint32(%s_)", "EncodeSint32(%d, %s_)", "EncodeRepSint32(%d, %s_)"},
-	protoreflect.Uint32Kind: {"uint32_t", "DecodeUint32()", "DecodeRepUint32(%s_)", "EncodeUint32(%d, %s_)", "EncodeRepUint32(%d, %s_)"},
-	protoreflect.Int64Kind:  {"int64_t", "DecodeInt64()", "DecodeRepInt64(%s_)", "EncodeInt64(%d, %s_)", "EncodeRepInt64(%d, %s_)"},
-	protoreflect.Sint64Kind: {"int64_t", "DecodeSint64()", "DecodeRepSint64(%s_)", "EncodeSint64(%d, %s_)", "EncodeRepSint64(%d, %s_)"},
-	protoreflect.Uint64Kind: {"uint64_t", "DecodeUint64()", "DecodeRepUint64(%s_)", "EncodeUint64(%d, %s_)", "EncodeRepUint64(%d, %s_)"},
+	protoreflect.BoolKind:   {"bool", "false", "DecodeBool()", "DecodeRepBool(%s_)", "EncodeBool(%d, %s_)", "EncodeRepBool(%d, %s_)"},
+	protoreflect.Int32Kind:  {"int32_t", "0", "DecodeInt32()", "DecodeRepInt32(%s_)", "EncodeInt32(%d, %s_)", "EncodeRepInt32(%d, %s_)"},
+	protoreflect.Sint32Kind: {"int32_t", "0", "DecodeSint32()", "DecodeRepSint32(%s_)", "EncodeSint32(%d, %s_)", "EncodeRepSint32(%d, %s_)"},
+	protoreflect.Uint32Kind: {"uint32_t", "0", "DecodeUint32()", "DecodeRepUint32(%s_)", "EncodeUint32(%d, %s_)", "EncodeRepUint32(%d, %s_)"},
+	protoreflect.Int64Kind:  {"int64_t", "0", "DecodeInt64()", "DecodeRepInt64(%s_)", "EncodeInt64(%d, %s_)", "EncodeRepInt64(%d, %s_)"},
+	protoreflect.Sint64Kind: {"int64_t", "0", "DecodeSint64()", "DecodeRepSint64(%s_)", "EncodeSint64(%d, %s_)", "EncodeRepSint64(%d, %s_)"},
+	protoreflect.Uint64Kind: {"uint64_t", "0", "DecodeUint64()", "DecodeRepUint64(%s_)", "EncodeUint64(%d, %s_)", "EncodeRepUint64(%d, %s_)"},
 
-	protoreflect.Sfixed32Kind: {"int32_t", "DecodeSfixed32()", "DecodeRepSfixed32(%s_)", "EncodeSfixed32(%d, %s_)", "EncodeRepSfixed32(%d, %s_)"},
-	protoreflect.Fixed32Kind:  {"uint32_t", "DecodeFixed32()", "DecodeRepFixed32(%s_)", "EncodeFixed32(%d, %s_)", "EncodeRepFixed32(%d, %s_)"},
-	protoreflect.Sfixed64Kind: {"int64_t", "DecodeSfixed64()", "DecodeRepSfixed64(%s_)", "EncodeSfixed64(%d, %s_)", "EncodeRepSfixed64(%d, %s_)"},
-	protoreflect.Fixed64Kind:  {"uint64_t", "DecodeFixed64()", "DecodeRepFixed64(%s_)", "EncodeFixed64(%d, %s_)", "EncodeRepFixed64(%d, %s_)"},
+	protoreflect.Sfixed32Kind: {"int32_t", "0", "DecodeSfixed32()", "DecodeRepSfixed32(%s_)", "EncodeSfixed32(%d, %s_)", "EncodeRepSfixed32(%d, %s_)"},
+	protoreflect.Fixed32Kind:  {"uint32_t", "0", "DecodeFixed32()", "DecodeRepFixed32(%s_)", "EncodeFixed32(%d, %s_)", "EncodeRepFixed32(%d, %s_)"},
+	protoreflect.Sfixed64Kind: {"int64_t", "0", "DecodeSfixed64()", "DecodeRepSfixed64(%s_)", "EncodeSfixed64(%d, %s_)", "EncodeRepSfixed64(%d, %s_)"},
+	protoreflect.Fixed64Kind:  {"uint64_t", "0", "DecodeFixed64()", "DecodeRepFixed64(%s_)", "EncodeFixed64(%d, %s_)", "EncodeRepFixed64(%d, %s_)"},
 
-	protoreflect.FloatKind:  {"float", "DecodeFloat()", "DecodeRepFloat(%s_)", "EncodeFloat(%d, %s_)", "EncodeRepFloat(%d, %s_)"},
-	protoreflect.DoubleKind: {"double", "DecodeDouble()", "DecodeRepDouble(%s_)", "EncodeDouble(%d, %s_)", "EncodeRepDouble(%d, %s_)"},
-	protoreflect.StringKind: {"std::string", "DecodeString()", "", "EncodeString(%d, %s_)", ""},
-	protoreflect.BytesKind:  {"std::vector<uint8_t>", "DecodeByte()", "", "EncodeBytes(%d, %s_)", ""},
-}
-
-var protoCustom = map[protoreflect.Kind]typeMapper{
-	protoreflect.EnumKind:    {"", "", "", "", ""},
-	protoreflect.MessageKind: {"", "", "", "", ""},
+	protoreflect.FloatKind:  {"float", "0.f", "DecodeFloat()", "DecodeRepFloat(%s_)", "EncodeFloat(%d, %s_)", "EncodeRepFloat(%d, %s_)"},
+	protoreflect.DoubleKind: {"double", "0.0", "DecodeDouble()", "DecodeRepDouble(%s_)", "EncodeDouble(%d, %s_)", "EncodeRepDouble(%d, %s_)"},
+	protoreflect.StringKind: {"std::string", "", "DecodeString()", "", "EncodeString(%d, %s_)", ""},
+	protoreflect.BytesKind:  {"std::vector<uint8_t>", "", "DecodeByte()", "", "EncodeBytes(%d, %s_)", ""},
 }
 
 const headerInclues = `

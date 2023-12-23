@@ -104,23 +104,23 @@ var ueasProtocolCppTempl = `
 `
 
 var ueasprotoNative = map[protoreflect.Kind]typeMapper{
-	protoreflect.BoolKind:   {"bool", "DecodeBool", "DecodeRepBool", "EncodeBool", "EncodeRepBool"},
-	protoreflect.Int32Kind:  {"int32", "DecodeInt32", "DecodeRepInt32", "EncodeInt32", "EncodeRepInt32"},
-	protoreflect.Sint32Kind: {"int32", "DecodeSint32", "DecodeRepSint32", "EncodeSint32", "EncodeRepSint32"},
-	protoreflect.Uint32Kind: {"uint32", "DecodeUint32", "DecodeRepUint32", "EncodeUint32", "EncodeRepUint32"},
-	protoreflect.Int64Kind:  {"int64", "DecodeInt64", "DecodeRepInt64", "EncodeInt64", "EncodeRepInt64"},
-	protoreflect.Sint64Kind: {"int64", "DecodeSint64", "DecodeRepSint64", "EncodeSint64", "EncodeRepSint64"},
-	protoreflect.Uint64Kind: {"uint64", "DecodeUint64", "DecodeRepUint64", "EncodeUint64", "EncodeRepUint64"},
+	protoreflect.BoolKind:   {"bool", "false", "DecodeBool", "DecodeRepBool", "EncodeBool", "EncodeRepBool"},
+	protoreflect.Int32Kind:  {"int32", "0", "DecodeInt32", "DecodeRepInt32", "EncodeInt32", "EncodeRepInt32"},
+	protoreflect.Sint32Kind: {"int32", "0", "DecodeSint32", "DecodeRepSint32", "EncodeSint32", "EncodeRepSint32"},
+	protoreflect.Uint32Kind: {"uint32", "0", "DecodeUint32", "DecodeRepUint32", "EncodeUint32", "EncodeRepUint32"},
+	protoreflect.Int64Kind:  {"int64", "0", "DecodeInt64", "DecodeRepInt64", "EncodeInt64", "EncodeRepInt64"},
+	protoreflect.Sint64Kind: {"int64", "0", "DecodeSint64", "DecodeRepSint64", "EncodeSint64", "EncodeRepSint64"},
+	protoreflect.Uint64Kind: {"uint64", "0", "DecodeUint64", "DecodeRepUint64", "EncodeUint64", "EncodeRepUint64"},
 
-	protoreflect.Sfixed32Kind: {"int32", "DecodeSfixed32", "DecodeRepSfixed32", "EncodeSfixed32", "EncodeRepSfixed32"},
-	protoreflect.Fixed32Kind:  {"uint32", "DecodeFixed32", "DecodeRepFixed32", "EncodeFixed32", "EncodeRepFixed32"},
-	protoreflect.Sfixed64Kind: {"int64", "DecodeSfixed64", "DecodeRepSfixed64", "EncodeSfixed64", "EncodeRepSfixed64"},
-	protoreflect.Fixed64Kind:  {"uint64", "DecodeFixed64", "DecodeRepFixed64", "EncodeFixed64", "EncodeRepFixed64"},
+	protoreflect.Sfixed32Kind: {"int32", "0", "DecodeSfixed32", "DecodeRepSfixed32", "EncodeSfixed32", "EncodeRepSfixed32"},
+	protoreflect.Fixed32Kind:  {"uint32", "0", "DecodeFixed32", "DecodeRepFixed32", "EncodeFixed32", "EncodeRepFixed32"},
+	protoreflect.Sfixed64Kind: {"int64", "0", "DecodeSfixed64", "DecodeRepSfixed64", "EncodeSfixed64", "EncodeRepSfixed64"},
+	protoreflect.Fixed64Kind:  {"uint64", "0", "DecodeFixed64", "DecodeRepFixed64", "EncodeFixed64", "EncodeRepFixed64"},
 
-	protoreflect.FloatKind:  {"float", "DecodeFloat", "DecodeRepFloat", "EncodeFloat", "EncodeRepFloat"},
-	protoreflect.DoubleKind: {"double", "DecodeDouble", "DecodeRepDouble", "EncodeDouble", "EncodeRepDouble"},
-	protoreflect.StringKind: {"FBinary", "DecodeString", "", "EncodeString", ""},
-	protoreflect.BytesKind:  {"TArray<uint8>", "DecodeByte", "", "EncodeBytes", ""},
+	protoreflect.FloatKind:  {"float", "0.f", "DecodeFloat", "DecodeRepFloat", "EncodeFloat", "EncodeRepFloat"},
+	protoreflect.DoubleKind: {"double", "0.0", "DecodeDouble", "DecodeRepDouble", "EncodeDouble", "EncodeRepDouble"},
+	protoreflect.StringKind: {"FBinary", "", "DecodeString", "", "EncodeString", ""},
+	protoreflect.BytesKind:  {"TArray<uint8>", "", "DecodeByte", "", "EncodeBytes", ""},
 }
 
 func parseMessageField(classDef *ClassDef, fd protoreflect.FieldDescriptor) {

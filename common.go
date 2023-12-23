@@ -8,6 +8,7 @@ import (
 type FieldInfo struct {
 	TypeName     string
 	FieldName    string
+	DefaultValue string
 	Number       uint64
 	EncodeMethod string
 	DecodeMethod string
@@ -50,6 +51,7 @@ type ParsedStruct struct {
 
 type typeMapper struct {
 	cppType         string
+	zeroValue       string
 	decodeMethod    string
 	decodeRepMethod string
 	encodeMethod    string
