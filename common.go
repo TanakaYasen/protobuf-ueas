@@ -18,6 +18,8 @@ type FieldInfo struct {
 	DirtyIndex int
 	Setter     string
 	Getter     string
+	Adder      string
+	Cleaner    string
 }
 
 type EnumValue struct {

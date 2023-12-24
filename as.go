@@ -47,10 +47,13 @@ public:
 	{{end}}
 	{{end}}
 
-	{{range .Fields}}
-	{{.Getter}}
-	{{.Setter}}
+	/////////////getters & setters
+	{{range .Fields}}{{.Getter}}
+	{{.Setter}}	{{if .Adder}}
+	{{.Adder}}{{end}} {{if .Cleaner}}
+	{{.Cleaner}}{{end}}
 	{{end}}
+	/////////////getters & setters
 
 	{{.ClassName}}();
 	explicit {{.ClassName}}(std::string_view);
@@ -61,12 +64,10 @@ public:
 
 private:
 	bool 	Valid;
-	{{if gt .DirtyCount 0}}
-	uint64_t	DirtyMask[(MaxField+63)/64];
+	{{if gt .DirtyCount 0}}uint8_t	DirtyMask[(MaxField+7)/8];
 	{{end}}
 	
-	{{range .Fields}}
-	{{.TypeName}} {{.FieldName}}_{{if .DefaultValue}} = {{.DefaultValue}}{{end}};
+	{{range .Fields}}{{.TypeName}} {{.FieldName}}_{{if .DefaultValue}} = {{.DefaultValue}}{{end}};
 	{{end}}
 };
 #pragma endregion
@@ -96,7 +97,7 @@ namespace {{.PackageName}} {
 	#pragma region "{{.ClassName}}"
 	{{.ClassName}}::{{.ClassName}}() {
 		{{if gt .DirtyCount 0}}
-		::memset(DirtyMask, 0, (MaxField+63)/64);
+		::memset(DirtyMask, 0, (MaxField+7)/8);
 		{{end}}
 	}
 	{{.ClassName}}::{{.ClassName}}(std::string_view v):Valid(true) {
@@ -199,20 +200,6 @@ func asparseMessageField(classDef *ClassDef, fd protoreflect.FieldDescriptor, sc
 			fieldInfo.DefaultValue = n.zeroValue
 		}
 	} else {
-		/*
-			if fd.Kind() == protoreflect.MessageKind {
-				if isRepeated {
-					fieldInfo.EncodeCode = fmt.Sprintf("for (const auto &v: %s_){ encoder.EncodeSubmessage(%d, v); }", fieldInfo.FieldName, fieldInfo.Number)
-					fieldInfo.DecodeCode = fmt.Sprintf("{auto v = decoder.DecodeSubmessage();  %s_.emplace_back(); %s_.back().Unserialize((const uint8_t*)v.data(), v.length()); }",
-						fieldInfo.FieldName, fieldInfo.FieldName)
-				} else {
-					fieldInfo.EncodeCode = fmt.Sprintf("encoder.EncodeSubmessage(%d, %s_);", fieldInfo.Number, fieldInfo.FieldName)
-					fieldInfo.DecodeCode = fmt.Sprintf("{auto v = decoder.DecodeSubmessage(); %s_.Unserialize((const uint8_t*)v.data(), v.length()); }", fieldInfo.FieldName)
-				}
-				cppTypeName := scopeTracker.DescopedName(string(fd.Message().FullName()))
-				fieldInfo.TypeName = fmt.Sprintf(formater, cppTypeName)
-			}
-		*/
 		if fd.Kind() == protoreflect.MessageKind {
 			if isRepeated {
 				fieldInfo.EncodeCode = fmt.Sprintf("for (const auto &v: %s_){ encoder.EncodeSubmessage(%d, v); }", fieldInfo.FieldName, fieldInfo.Number)
@@ -247,18 +234,25 @@ func asparseMessageField(classDef *ClassDef, fd protoreflect.FieldDescriptor, sc
 			protoreflect.Sfixed32Kind, protoreflect.Fixed32Kind,
 			protoreflect.Sfixed64Kind, protoreflect.Fixed64Kind,
 			protoreflect.FloatKind, protoreflect.DoubleKind:
-			fieldInfo.Getter = fmt.Sprintf("%s Get%s() const { return %s_; }", n.cppType, capName, fieldInfo.FieldName)
-			fieldInfo.Setter = fmt.Sprintf("void Set%s(%s value) { %s_ = value; }", capName, n.cppType, fieldInfo.FieldName)
+			fieldInfo.Getter = fmt.Sprintf("%s Get%s(int idx) const { return %s_[idx]; }", n.cppType, capName, fieldInfo.FieldName)
+			fieldInfo.Setter = fmt.Sprintf("void Set%s(int idx, %s value) { %s_[idx] = value; }", capName, n.cppType, fieldInfo.FieldName)
+			fieldInfo.Adder = fmt.Sprintf("void Append%s(%s value) {%s_.push_back(value);}", capName, n.cppType, fieldInfo.FieldName)
+			fieldInfo.Cleaner = fmt.Sprintf("void Clear%s() {%s_.clear();}", capName, fieldInfo.FieldName)
 
 		case protoreflect.StringKind:
-			fieldInfo.Getter = fmt.Sprintf("std::string Get%s() const { return %s_;}", capName, fieldInfo.FieldName)
-			fieldInfo.Setter = fmt.Sprintf("void Set%s(const std::string &value) { %s_ = value; }", capName, fieldInfo.FieldName)
+			fieldInfo.Getter = fmt.Sprintf("std::string Get%s(int idx) const { return %s_[idx];}", capName, fieldInfo.FieldName)
+			fieldInfo.Setter = fmt.Sprintf("void Set%s(int idx, const std::string &value) { %s_[idx] = value; }", capName, fieldInfo.FieldName)
+			fieldInfo.Adder = fmt.Sprintf("void Append%s(const std::string &value) {%s_.push_back(value);}", capName, fieldInfo.FieldName)
+			fieldInfo.Cleaner = fmt.Sprintf("void Clear%s() {%s_.clear();}", capName, fieldInfo.FieldName)
+
 		case protoreflect.BytesKind:
 			fieldInfo.Getter = fmt.Sprintf("std::vector<uint8_t> Get%s() const { return %s_; }", capName, fieldInfo.FieldName)
 			fieldInfo.Setter = fmt.Sprintf("void Set%s(const std::vector<uint8_t> &value) { %s_ = value; }", capName, fieldInfo.FieldName)
+
 		case protoreflect.MessageKind:
-			fieldInfo.Getter = fmt.Sprintf("const auto &Get%s() const ", capName)
-			fieldInfo.Setter = fmt.Sprintf("auto& Mutable%s(const std::string &value) ", capName)
+			fieldInfo.Getter = fmt.Sprintf("const %s& Get%s() const {return %s_;}", fieldInfo.TypeName, capName, fieldInfo.FieldName)
+			fieldInfo.Setter = fmt.Sprintf("%s& Mutable%s() {return %s_;} ", fieldInfo.TypeName, capName, fieldInfo.FieldName)
+
 		}
 	} else {
 		switch fd.Kind() {
@@ -274,7 +268,7 @@ func asparseMessageField(classDef *ClassDef, fd protoreflect.FieldDescriptor, sc
 
 			fieldInfo.Getter = fmt.Sprintf("%s Get%s() const { return %s_; }", n.cppType, capName, fieldInfo.FieldName)
 			fieldInfo.Setter = fmt.Sprintf("void Set%s(%s value) { %s_ = value; DirtyMask[%d] |= 0x%X; }",
-				capName, n.cppType, fieldInfo.FieldName, fieldInfo.DirtyIndex/8, (uint64)(1<<(fieldInfo.DirtyIndex%8)))
+				capName, n.cppType, fieldInfo.FieldName, fieldInfo.DirtyIndex/8, (1 << (fieldInfo.DirtyIndex % 8)))
 
 		case protoreflect.StringKind:
 			fieldInfo.Getter = fmt.Sprintf("std::string Get%s() const { return %s_;}", capName, fieldInfo.FieldName)
@@ -285,8 +279,8 @@ func asparseMessageField(classDef *ClassDef, fd protoreflect.FieldDescriptor, sc
 			fieldInfo.Setter = fmt.Sprintf("void Set%s(const std::vector<uint8_t> &value) { %s_ = value; }", capName, fieldInfo.FieldName)
 
 		case protoreflect.MessageKind:
-			fieldInfo.Getter = fmt.Sprintf("const auto &Get%s() const ", capName)
-			fieldInfo.Setter = fmt.Sprintf("auto& Mutable%s(const std::string &value) ", capName)
+			fieldInfo.Getter = fmt.Sprintf("const %s& Get%s() const { return %s_; }", fieldInfo.TypeName, capName, fieldInfo.FieldName)
+			fieldInfo.Setter = fmt.Sprintf("%s& Mutable%s() { return %s_; }", fieldInfo.TypeName, capName, fieldInfo.FieldName)
 		}
 
 	}
