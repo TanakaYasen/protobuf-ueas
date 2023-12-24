@@ -30,9 +30,10 @@ namespace {{.PackageName}} {
 	public:
 		{{range .Fields}}
 		UPROPERTY(BlueprintReadWrite)
-		{{.TypeName}} {{.FieldName}};
+		{{.TypeName}} {{.FieldName}}{{if .DefaultValue}} = {{.DefaultValue}}{{end}};
 		{{end}}
 
+		bool _Valid = true;
 		ustring Serialize() const;
 		bool Unserialize(const uint8*, size_t);
 	};
@@ -56,9 +57,8 @@ namespace {{.PackageName}} {
 
 	ustring {{.ClassName}}::Serialize() const {
 {{if gt (len .Fields) 0}}
-		WireEncoder encoder();
-		encoder
-		{{range .Fields}}	.{{.EncodeMethod}}({{.Number}}, {{.FieldName}});
+		WireEncoder encoder;
+		{{range .Fields}}{{if .EncodeCode}}{{.EncodeCode}}{{else}}encoder.{{.EncodeMethod}}({{.Number}}, {{.FieldName}}){{end}};
 		{{end}}
 		return encoder.Dump();
 {{else}}
@@ -72,7 +72,7 @@ namespace {{.PackageName}} {
 		while ((fn = decoder.ReadTag()) && decoder.IsOk()) {
 			switch(fn) { {{range .Fields}}
 			case {{.Number}}:
-				{{.FieldName}} = {{.DecodeMethod}}();
+				{{if .DecodeCode}}{{.DecodeCode}}{{else}}{{.FieldName}} = {{.DecodeMethod}}();{{end}}
 				break;{{end}}
 			default:
 				break;
@@ -142,11 +142,23 @@ func parseMessageField(classDef *ClassDef, fd protoreflect.FieldDescriptor) {
 		} else {
 			fieldInfo.EncodeMethod = n.encodeMethod
 			fieldInfo.DecodeMethod = n.decodeMethod
+			fieldInfo.DefaultValue = n.zeroValue
 		}
 	} else {
 		if fd.Kind() == protoreflect.MessageKind {
-
 			fieldInfo.TypeName = fmt.Sprintf(formater, string(fd.Message().FullName()))
+
+			if isRepeated {
+				fieldInfo.EncodeCode = fmt.Sprintf("for (const auto &v: %s_){ encoder.EncodeSubmessage(%d, v); }",
+					fieldInfo.FieldName, fieldInfo.Number)
+				fieldInfo.DecodeCode = fmt.Sprintf("{ decoder.DecodeRepSubmessage(%s_); }",
+					fieldInfo.FieldName)
+			} else {
+				fieldInfo.EncodeCode = fmt.Sprintf("encoder.EncodeSubmessage(%d, %s_);",
+					fieldInfo.Number, fieldInfo.FieldName)
+				fieldInfo.DecodeCode = fmt.Sprintf("{auto v = decoder.DecodeSubmessage(); %s_.Unserialize((const uint8*)v.Data(), v.Len()); };",
+					fieldInfo.FieldName)
+			}
 
 		} else if fd.Kind() == protoreflect.EnumKind {
 
@@ -166,7 +178,8 @@ func parseMessageClass(out *ParsedStruct, msg *protogen.Message) {
 
 	newClass.Nested = make([]*ClassDef, 0)
 	for _, subMessage := range msg.Messages {
-		log.Println(subMessage)
+		parseMessageClass(out, subMessage)
+		//log.Println(subMessage)
 	}
 
 	for _, field := range msg.Fields {

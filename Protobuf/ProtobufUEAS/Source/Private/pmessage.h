@@ -9,3 +9,8 @@
 
 typedef TArray<uint8> ustring;
 typedef TStringView ustringview;
+
+USTRUCT(BlueprintType)
+struct FBinary {
+    ustring _data;
+};

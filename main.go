@@ -59,7 +59,7 @@ func main() {
 			if !file.Generate {
 				continue
 			}
-			generateAs(plugin, file)
+			generateUeas(plugin, file)
 		}
 
 		return nil

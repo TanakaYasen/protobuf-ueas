@@ -19,6 +19,7 @@ enum WireType {
     WT_I32 = 5,     //	fixed32, sfixed32, float
 };
 
+
 class WireEncoder {
     uint8 *ps, *pe;
     uint8 *pcur;
@@ -34,14 +35,14 @@ class WireEncoder {
         float   f;
     };
 
+    static size_t VarintLen(uint64);
+
+    void CheckSpace(size_t);
     WireEncoder& WriteTag(uint64 fn, WireType wt);
     WireEncoder& WriteVarint(uint64);
     WireEncoder& WriteI32(uint32);
     WireEncoder& WriteI64(uint64);
-
-    static size_t VarintLen(uint64);
-
-    void CheckSpace(size_t);
+    WireEncoder& WriteBytes(const uint8*, size_t);
 
 public:
     WireEncoder();
@@ -64,7 +65,7 @@ public:
     template <typename T>
     WireEncoder& EncodeSubmessage(uint64 fn, const T&msg) {
         // static_assert(std::is_base_of_v<T, >)
-        return EncodeString(msg.Serialize());
+        return EncodeString(fn, msg.Serialize());
     }
 
     //I32
@@ -92,7 +93,7 @@ public:
     WireEncoder& EncodeRepInt64(uint64 fn, const TArray<int64>&);
     WireEncoder& EncodeRepSint64(uint64 fn, const TArray<int64>&);
     WireEncoder& EncodeRepUint64(uint64 fn, const TArray<uint64>&);
-
+    WireEncoder& EncodeRepString(uint64 fn, TArray<ustring>&vs);
 };
 
 
@@ -152,6 +153,7 @@ public:
     uint64    DecodeFixed64();
     double      DecodeDouble();
 
+    //skip
     void        DecodeUnknown();
 
     //reps
@@ -170,6 +172,17 @@ public:
     DecodeRepDecl(Fixed64, uint64);
     DecodeRepDecl(Double, double);
 #undef DecodeRepDecl
-
+    void DecodeRepString(TArray<ustring>&);
+    template <typename T>
+    void DecodeRepSubmessage(TArray<T>& values) {
+        ustringview v = DecodeSubmessage();
+        if (!valid) return;
+        T msg(v);
+        if (msg.IsValid()) {
+            values.EmplaceBack(MoveTemp(msg));
+            return;
+        }
+        valid = false;
+    }
 };
 

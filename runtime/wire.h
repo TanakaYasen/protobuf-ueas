@@ -40,7 +40,7 @@ class WireEncoder {
     };
 
     static size_t VarintLen(uint64_t);
-    void CheckSpace(size_t);
+        void CheckSpace(size_t);
     WireEncoder& WriteTag(uint64_t fn, WireType wt);
     WireEncoder& WriteVarint(uint64_t);
     WireEncoder& WriteI32(uint32_t);
