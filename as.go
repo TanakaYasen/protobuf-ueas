@@ -48,19 +48,21 @@ public:
 	{{end}}
 
 	{{range .Fields}}
-	{{.Getter}};
-	{{.Setter}};
+	{{.Getter}}
+	{{.Setter}}
 	{{end}}
 
 	{{.ClassName}}();
+	explicit {{.ClassName}}(std::string_view);
 	std::string Serialize() const;
 	bool Unserialize(const uint8_t *_data, size_t len);
+	bool IsValid() const { return Valid; }
 	static void RegisterToAngelScript(asIScriptEngine *engine);
 
 private:
 	bool 	Valid;
 	{{if gt .DirtyCount 0}}
-	uint64_t	DirtyMask[(MaxField+7)/8];
+	uint64_t	DirtyMask[(MaxField+63)/64];
 	{{end}}
 	
 	{{range .Fields}}
@@ -94,8 +96,13 @@ namespace {{.PackageName}} {
 	#pragma region "{{.ClassName}}"
 	{{.ClassName}}::{{.ClassName}}() {
 		{{if gt .DirtyCount 0}}
-		::memset(DirtyMask, 0, (MaxField+7)/8);
+		::memset(DirtyMask, 0, (MaxField+63)/64);
 		{{end}}
+	}
+	{{.ClassName}}::{{.ClassName}}(std::string_view v):Valid(true) {
+		if (!Unserialize((const uint8_t*)v.data(), v.length())) {
+			Valid = false;
+		}
 	}
 	std::string {{.ClassName}}::Serialize() const {
 	{{if gt (len .Fields) 0}}
@@ -192,19 +199,34 @@ func asparseMessageField(classDef *ClassDef, fd protoreflect.FieldDescriptor, sc
 			fieldInfo.DefaultValue = n.zeroValue
 		}
 	} else {
+		/*
+			if fd.Kind() == protoreflect.MessageKind {
+				if isRepeated {
+					fieldInfo.EncodeCode = fmt.Sprintf("for (const auto &v: %s_){ encoder.EncodeSubmessage(%d, v); }", fieldInfo.FieldName, fieldInfo.Number)
+					fieldInfo.DecodeCode = fmt.Sprintf("{auto v = decoder.DecodeSubmessage();  %s_.emplace_back(); %s_.back().Unserialize((const uint8_t*)v.data(), v.length()); }",
+						fieldInfo.FieldName, fieldInfo.FieldName)
+				} else {
+					fieldInfo.EncodeCode = fmt.Sprintf("encoder.EncodeSubmessage(%d, %s_);", fieldInfo.Number, fieldInfo.FieldName)
+					fieldInfo.DecodeCode = fmt.Sprintf("{auto v = decoder.DecodeSubmessage(); %s_.Unserialize((const uint8_t*)v.data(), v.length()); }", fieldInfo.FieldName)
+				}
+				cppTypeName := scopeTracker.DescopedName(string(fd.Message().FullName()))
+				fieldInfo.TypeName = fmt.Sprintf(formater, cppTypeName)
+			}
+		*/
 		if fd.Kind() == protoreflect.MessageKind {
 			if isRepeated {
 				fieldInfo.EncodeCode = fmt.Sprintf("for (const auto &v: %s_){ encoder.EncodeSubmessage(%d, v); }", fieldInfo.FieldName, fieldInfo.Number)
-				fieldInfo.DecodeCode = fmt.Sprintf("{auto v = decoder.DecodeSubmessage();  %s_.emplace_back(); %s_.back().Unserialize((const uint8_t*)v.data(), v.length()); }",
-					fieldInfo.FieldName, fieldInfo.FieldName)
+				fieldInfo.DecodeCode = fmt.Sprintf("{ decoder.DecodeRepSubmessage(%s_); }",
+					fieldInfo.FieldName)
 			} else {
 				fieldInfo.EncodeCode = fmt.Sprintf("encoder.EncodeSubmessage(%d, %s_);", fieldInfo.Number, fieldInfo.FieldName)
 				fieldInfo.DecodeCode = fmt.Sprintf("{auto v = decoder.DecodeSubmessage(); %s_.Unserialize((const uint8_t*)v.data(), v.length()); }", fieldInfo.FieldName)
 			}
 			cppTypeName := scopeTracker.DescopedName(string(fd.Message().FullName()))
 			fieldInfo.TypeName = fmt.Sprintf(formater, cppTypeName)
+		}
 
-		} else if fd.Kind() == protoreflect.EnumKind {
+		if fd.Kind() == protoreflect.EnumKind {
 
 			cppTypeName := scopeTracker.DescopedName(string(fd.Enum().FullName()))
 			fieldInfo.TypeName = fmt.Sprintf(formater, cppTypeName)

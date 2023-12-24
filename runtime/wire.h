@@ -39,14 +39,13 @@ class WireEncoder {
         float   f;
     };
 
+    static size_t VarintLen(uint64_t);
+    void CheckSpace(size_t);
     WireEncoder& WriteTag(uint64_t fn, WireType wt);
     WireEncoder& WriteVarint(uint64_t);
     WireEncoder& WriteI32(uint32_t);
     WireEncoder& WriteI64(uint64_t);
-
-    static size_t VarintLen(uint64_t);
-
-    void CheckSpace(size_t);
+    WireEncoder& WriteBytes(const uint8_t*, size_t);
 
 public:
     WireEncoder();
@@ -158,6 +157,7 @@ public:
     uint64_t    DecodeFixed64();
     double      DecodeDouble();
 
+    //skip
     void        DecodeUnknown();
 
     //reps
@@ -177,5 +177,16 @@ public:
     DecodeRepDecl(Double, double);
 #undef DecodeRepDecl
     void DecodeRepString(std::vector<std::string>&);
+    template <typename T>
+    void DecodeRepSubmessage(std::vector<T>& values) {
+        std::string_view v = DecodeSubmessage();
+        if (!valid) return;
+        T msg(v);
+        if (msg.IsValid()) {
+            values.emplace_back(std::move(msg));
+            return;
+        }
+        valid = false;
+    }
 };
 

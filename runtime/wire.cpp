@@ -79,7 +79,9 @@ void WireDecoder::DecodeRep##suf(std::vector<ct> &values) { \
             ct v = (ct)reader; \
             values.push_back(CV(v)); \
         } \
+        return; \
     } \
+    valid = false; \
 }
 
 
@@ -93,6 +95,16 @@ std::string WireEncoder::Dump() const {
     return std::string{(const char*)&_inner[0], (size_t)(pcur-ps)};
 }
 
+
+
+size_t WireEncoder::VarintLen(uint64_t v){
+    size_t off = 0;
+    while (v > 0x7f) {
+        ++off; v >>= 7;
+    }
+    ++off;
+    return off;
+}
 
 void WireEncoder::CheckSpace(size_t sz) {
     if (pcur + sz <= pe) { return; }
@@ -122,16 +134,6 @@ WireEncoder& WireEncoder::WriteVarint(uint64_t v){
     *pcur++ = v & 0x7f;
     return *this;
 }
-
-size_t WireEncoder::VarintLen(uint64_t v){
-    size_t off = 0;
-    while (v > 0x7f) {
-        ++off; v >>= 7;
-    }
-    ++off;
-    return off;
-}
-
 WireEncoder& WireEncoder::WriteI32(uint32_t v){
     CheckSpace(4);
     pcur = write_dword(pcur, v);
@@ -142,54 +144,53 @@ WireEncoder& WireEncoder::WriteI64(uint64_t v){
     pcur = write_qword(pcur, v);
     return *this;
 }
+WireEncoder& WireEncoder::WriteBytes(const uint8_t *data, size_t size){
+    CheckSpace(size);
+    ::memcpy(pcur, data, size);
+    pcur += size;
+    return *this;
+}
+
 
 //VARINT
 WireEncoder& WireEncoder::EncodeInt32(uint64_t fn, int32_t v){
-    CheckSpace(10+10);
     WriteTag(fn, WT_VARINT);
     WriteVarint(v);
     return *this;
 }
 WireEncoder& WireEncoder::EncodeSint32(uint64_t fn, int32_t v){
-    CheckSpace(10+10);
     WriteTag(fn, WT_VARINT);
     uint32_t q = ZipZagE(v);
     WriteVarint(q);
     return *this;
 }
 WireEncoder& WireEncoder::EncodeUint32(uint64_t fn, uint32_t v){
-    CheckSpace(10+10);
     WriteTag(fn, WT_VARINT);
     WriteVarint(v);
     return *this;
 }
 WireEncoder& WireEncoder::EncodeInt64(uint64_t fn, int64_t v){
-    CheckSpace(10+10);
     WriteTag(fn, WT_VARINT);
     WriteVarint(v);
     return *this;
 }
 WireEncoder& WireEncoder::EncodeSint64(uint64_t fn, int64_t v){
-    CheckSpace(10+10);
     WriteTag(fn, WT_VARINT);
     uint64_t q = ZipZagE(v);
     WriteVarint(q);
     return *this;
 }
 WireEncoder& WireEncoder::EncodeUint64(uint64_t fn, uint64_t v){
-    CheckSpace(10+10);
     WriteTag(fn, WT_VARINT);
     WriteVarint(v);
     return *this;
 }
 WireEncoder& WireEncoder::EncodeBool(uint64_t fn, bool v){
-    CheckSpace(10+10);
     WriteTag(fn, WT_VARINT);
     WriteVarint((uint64_t)v);
     return *this;
 }
 WireEncoder& WireEncoder::EncodeEnum(uint64_t fn, unsigned v){
-    CheckSpace(10+10);
     WriteTag(fn, WT_VARINT);
     WriteVarint((uint64_t)v);
     return *this;
@@ -198,63 +199,53 @@ WireEncoder& WireEncoder::EncodeEnum(uint64_t fn, unsigned v){
 //LEN
 WireEncoder& WireEncoder::EncodeString(uint64_t fn, const std::string&s){
     size_t len = s.length();
-    CheckSpace(10+10+len);
     WriteTag(fn, WT_LEN);
     WriteVarint(len);
-    ::memcpy(pcur, (uint8_t*)s.c_str(), len);
-    pcur += len;
+    WriteBytes((const uint8_t *)&s[0], len);
     return *this;
 }
 WireEncoder& WireEncoder::EncodeBytes(uint64_t fn, const std::vector<uint8_t>&v){
     size_t len = v.size();
-    CheckSpace(10+10+len);
     WriteTag(fn, WT_LEN);
     WriteVarint(len);
-    ::memcpy(pcur, (uint8_t*)&v[0], len);
-    pcur += len;
+    WriteBytes(&v[0], len);
     return *this;
 }
 
 //I32
 WireEncoder& WireEncoder::EncodeSfixed32(uint64_t fn, int32_t v){
-    CheckSpace(10+4);
     WriteTag(fn, WT_I32);
     WriteI32((uint32_t)v);
     return *this;
 }
 WireEncoder& WireEncoder::EncodeFixed32(uint64_t fn, uint32_t v){
-    CheckSpace(10+4);
     WriteTag(fn, WT_I32);
     WriteI32(v);
     return *this;
 }
 WireEncoder& WireEncoder::EncodeFloat(uint64_t fn, float v){
-    CheckSpace(10+4);
-    WriteTag(fn, WT_I32);
     pbfixed32 u;
     u.f = v;
+    WriteTag(fn, WT_I32);
     WriteI32(u.i32);
     return *this;
 }
 
 //I64
 WireEncoder& WireEncoder::EncodeSfixed64(uint64_t fn, int64_t v){
-    CheckSpace(10+8);
     WriteTag(fn, WT_I64);
     WriteI64((uint64_t)v);
     return *this;
 }
 WireEncoder& WireEncoder::EncodeFixed64(uint64_t fn, uint64_t v){
-    CheckSpace(10+8);
     WriteTag(fn, WT_I64);
     WriteI64(v);
     return *this;
 }
 WireEncoder& WireEncoder::EncodeDouble(uint64_t fn, double v){
-    CheckSpace(10+8);
-    WriteTag(fn, WT_I64);
     pbfixed64 u;
     u.d = v;
+    WriteTag(fn, WT_I64);
     WriteI64(u.i64);
     return *this;
 }
@@ -262,14 +253,14 @@ WireEncoder& WireEncoder::EncodeDouble(uint64_t fn, double v){
 WireEncoder& WireEncoder::EncodeRepString(uint64_t fn, const std::vector<std::string>&vs) {
     if (vs.size() == 0) return *this; \
     WriteTag(fn, WT_LEN); \
-    off64_t offold = pcur-ps; \
+    off64_t oldoffset = pcur-ps; \
     for (const auto &v : vs) { \
         EncodeString(fn, v); \
     } \
     CheckSpace(10); \
-    size_t totallen = pcur-(ps+offold); \
+    size_t totallen = pcur-(ps+oldoffset); \
     size_t lenvarint = VarintLen(totallen); \
-    uint8_t *pold = ps+offold;\
+    uint8_t *pold = ps+oldoffset;\
     memmove(pold+lenvarint, pold, totallen); \
     pcur = pold; WriteVarint(totallen); /*patch back*/\
     pcur += totallen; \
@@ -290,10 +281,13 @@ EncodeRepTempl(Uint32, uint32_t, KeepCV, WriteVarint(q))
 EncodeRepTempl(Sint64, int64_t, ZipZagE, WriteVarint(q))
 EncodeRepTempl(Sint32, int32_t, ZipZagE, WriteVarint(q))
 
-WireDecoder::WireDecoder(const uint8_t *data, size_t len)
+
+
+
+
+//////////////////////////////
+WireDecoder::WireDecoder(const uint8_t *data, size_t len):ps(data), pe(data+len)
 {
-    ps = data;
-    pe = data + len;
 }
 
 uint64_t WireDecoder::ReadTag() {
@@ -316,9 +310,8 @@ uint64_t WireDecoder::ReadTag() {
 std::string WireDecoder::ReadString(size_t len) {
     if (ps + len <= pe) 
     {
-        std::string tmp((char*)ps, len);
-        ps += len;
-        return tmp;
+        char *pold = (char*)ps; ps += len;
+        return std::string {pold, len};
     }
     valid = false;
     return std::string{};
@@ -337,9 +330,8 @@ std::vector<uint8_t> WireDecoder::ReadBytes(size_t len) {
 std::string_view WireDecoder::ReadLength(size_t len) {
     if (ps + len <= pe) 
     {
-        std::string_view tmp{(char*)ps, len};
-        ps += len;
-        return tmp;
+        char *pold = (char*)ps; ps += len;
+        return std::string_view {pold, len};;
     }
     valid = false;
     return std::string_view{};
@@ -459,7 +451,7 @@ uint64_t WireDecoder::DecodeUint64() {
 bool WireDecoder::DecodeBool() {
     if (wt == WT_VARINT)
         return (bool)ReadVarint();
-    return 0;
+    return false;
 }
 
 unsigned WireDecoder::DecodeEnum() {
@@ -467,7 +459,6 @@ unsigned WireDecoder::DecodeEnum() {
         return (unsigned)ReadVarint();
     return 0;
 }
-
 
 double WireDecoder::DecodeDouble() {
     switch (wt) {
@@ -488,65 +479,6 @@ float WireDecoder::DecodeFloat() {
     }
     return 0.0f;
 }
-
-#if 0
-std::vector<int32_t> WireDecoder::DecodeRepSf32() {
-    std::vector<int32_t> values;
-    if (wt == WT_I32) {
-        values.push_back((int32_t)ReadFixed32().i32);
-    }
-    else if (wt == WT_LEN) {
-        uint64_t len = ReadVarint();
-        if (!valid) {
-            return values;
-        }
-        const uint8_t* sential = ps + len;
-        while (ps < sential) 
-        {
-            values.push_back((int32_t)ReadFixed32().i32);
-        }
-    }
-    return values;
-}
-
-std::vector<uint32_t> WireDecoder::DecodeRepF32() {
-    std::vector<uint32_t> values;
-    if (wt == WT_I32) {
-        values.push_back(ReadFixed32().i32);
-    }
-    else if (wt == WT_LEN) {
-        uint64_t len = ReadVarint();
-        if (!valid) {
-            return values;
-        }
-        const uint8_t* sential = ps + len;
-        while (ps < sential) 
-        {
-            values.push_back(ReadFixed32().i32);
-        }
-    }
-    return values;
-}
-
-std::vector<float> WireDecoder::DecodeRepFloat() {
-    std::vector<float> values;
-    if (wt == WT_I32) {
-        values.push_back(ReadFixed32().f);
-    }
-    else if (wt == WT_LEN) {
-        uint64_t len = ReadVarint();
-        if (!valid) {
-            return values;
-        }
-        const uint8_t* sential = ps + len;
-        while (ps < sential) 
-        {
-            values.push_back(ReadFixed32().f);
-        }
-    }
-    return values;
-}
-#endif
 
 int64_t WireDecoder::DecodeSfixed64() {
     return (int64_t)DecodeFixed64();
@@ -597,8 +529,7 @@ DecodeRepTempl(Sint64, int64_t,  WT_VARINT, ZipZagD, ReadVarint())
 DecodeRepTempl(Sint32, int32_t,  WT_VARINT, ZipZagD, ReadVarint())
 
 std::string WireDecoder::DecodeString() {
-    switch (wt) {
-    case WT_LEN:
+    if (WT_LEN == wt)
     {
         uint64_t len = ReadVarint();
         if (valid) 
@@ -606,44 +537,31 @@ std::string WireDecoder::DecodeString() {
             return ReadString(len);
         }
     }
-    break;
-    default:
-        break;
-    }
+    valid = false;
     return std::string{};
 }
 
 std::vector<uint8_t> WireDecoder::DecodeBytes() {
-    switch (wt) {
-    case WT_LEN:
-    {
+    if (WT_LEN == wt) {
         uint64_t len = ReadVarint();
         if (valid) 
         {
             return ReadBytes(len);
         }
     }
-    break;
-    default:
-        break;
-    }
+    valid = false;
     return std::vector<uint8_t>{};
 }
 
 std::string_view WireDecoder::DecodeSubmessage() {
-    switch (wt) {
-    case WT_LEN:
-    {
+    if (wt == WT_LEN) {
         uint64_t len = ReadVarint();
         if (valid) 
         {
             return ReadLength(len);
         }
     }
-    break;
-    default:
-        break;
-    }
+    valid = false;
     return std::string_view{};
 }
 
@@ -667,27 +585,14 @@ void WireDecoder::DecodeUnknown() {
     case WT_I32:
         ReadFixed32();
     default:
+        valid = false;
         break;
     }
 }
 
 
 void WireDecoder::DecodeRepString(std::vector<std::string>& values) {\
-    if (wt == WT_LEN) { \
-        uint64_t len = ReadVarint(); \
-        if (!valid) { \
-            return;\
-        } \
-        const uint8_t* sential = ps + len; \
-        while (ps < sential) \
-        { \
-            uint64_t len = ReadVarint(); \
-            if (valid) \
-            { \
-                values.emplace_back(ReadString(len)); \
-            }
-            else \
-                break; \
-        } \
-    } \
+    std::string v = DecodeString();
+    if (!valid) return;
+    values.emplace_back(v);
 }
