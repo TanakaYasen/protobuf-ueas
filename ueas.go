@@ -26,7 +26,7 @@ namespace {{.PackageName}} {
 		
 	{{range .ClassDefinations}}
 	USTRUCT(BlueprintType)
-	struct FSproto_{{ .ClassName }} {
+	struct FPb_{{ .ClassName }} {
 	public:
 		{{range .Fields}}
 		UPROPERTY(BlueprintReadWrite)
@@ -55,7 +55,7 @@ namespace {{.PackageName}} {
 
 #pragma region "{{.ClassName}}"
 
-	ustring {{.ClassName}}::Serialize() const {
+	ustring FPb_{{.ClassName}}::Serialize() const {
 {{if gt (len .Fields) 0}}
 		WireEncoder encoder;
 		{{range .Fields}}{{if .EncodeCode}}{{.EncodeCode}}{{else}}encoder.{{.EncodeMethod}}({{.Number}}, {{.FieldName}}){{end}};
@@ -65,7 +65,7 @@ namespace {{.PackageName}} {
 		return ustring{};
 {{end}}
 	}
-	bool {{.ClassName}}::Unserialize(const uint8* data, size_t len) {
+	bool FPb_{{.ClassName}}::Unserialize(const uint8* data, size_t len) {
 {{if gt (len .Fields) 0}}
 		uint64 fn = 0;
 		WireDecoder decoder(data, len);
@@ -123,11 +123,11 @@ var ueasprotoNative = map[protoreflect.Kind]typeMapper{
 	protoreflect.BytesKind:  {"TArray<uint8>", "", "DecodeByte", "", "EncodeBytes", ""},
 }
 
-func parseMessageField(classDef *ClassDef, fd protoreflect.FieldDescriptor) {
+func ueasParseMessageField(classDef *ClassDef, fd protoreflect.FieldDescriptor, scopeTracker *scopeResolver) {
 	var isRepeated = fd.Cardinality() == protoreflect.Repeated
-	var formater string = "%s"
+	var formater string = "FPb_%s"
 	if isRepeated {
-		formater = "TArray<%s>"
+		formater = "TArray<FPb_%s>"
 	}
 	fieldInfo := &FieldInfo{
 		FieldName: string(fd.Name()),
@@ -146,7 +146,9 @@ func parseMessageField(classDef *ClassDef, fd protoreflect.FieldDescriptor) {
 		}
 	} else {
 		if fd.Kind() == protoreflect.MessageKind {
-			fieldInfo.TypeName = fmt.Sprintf(formater, string(fd.Message().FullName()))
+
+			cppTypeName := scopeTracker.DescopedName(string(fd.Message().FullName()))
+			fieldInfo.TypeName = fmt.Sprintf(formater, cppTypeName)
 
 			if isRepeated {
 				fieldInfo.EncodeCode = fmt.Sprintf("for (const auto &v: %s_){ encoder.EncodeSubmessage(%d, v); }",
@@ -172,21 +174,25 @@ func parseMessageField(classDef *ClassDef, fd protoreflect.FieldDescriptor) {
 	classDef.Fields = append(classDef.Fields, fieldInfo)
 }
 
-func parseMessageClass(out *ParsedStruct, msg *protogen.Message) {
+func ueasParseMessageClass(out *ParsedStruct, msg *protogen.Message, scopeTracker *scopeResolver) {
 	var newClass *ClassDef = new(ClassDef)
 	newClass.ClassName = string(msg.Desc.FullName().Name())
 
+	scopeTracker.ScopeIn(newClass.ClassName)
+
 	newClass.Nested = make([]*ClassDef, 0)
 	for _, subMessage := range msg.Messages {
-		parseMessageClass(out, subMessage)
+		ueasParseMessageClass(out, subMessage, scopeTracker)
 		//log.Println(subMessage)
 	}
 
 	for _, field := range msg.Fields {
-		parseMessageField(newClass, field.Desc)
+		ueasParseMessageField(newClass, field.Desc, scopeTracker)
 	}
 
 	out.ClassDefinations = append(out.ClassDefinations, newClass)
+
+	scopeTracker.ScopeOut()
 }
 
 func generateUeas(gen *protogen.Plugin, file *protogen.File) {
@@ -197,6 +203,7 @@ func generateUeas(gen *protogen.Plugin, file *protogen.File) {
 	OutputDir := path.Join("Protobuf", "ProtobufUEAS", "Source", "Generated")
 	outputHeader := filepath.Join(OutputDir, baseName+".h")
 	outputCpp := filepath.Join(OutputDir, baseName+".cpp")
+	scoper := new(scopeResolver)
 
 	pStruct := ParsedStruct{
 		SourceFile:  pathStr,
@@ -227,9 +234,11 @@ func generateUeas(gen *protogen.Plugin, file *protogen.File) {
 	}
 	defer outputHeaderFile.Close()
 
+	scoper.ScopeIn(*file.Proto.Package)
 	for _, msg := range file.Messages {
-		parseMessageClass(&pStruct, msg)
+		ueasParseMessageClass(&pStruct, msg, scoper)
 	}
+	scoper.ScopeOut()
 
 	templ, err := template.New("ueash").Parse(ueasHeaderTempl)
 	if err != nil {

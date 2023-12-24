@@ -30,46 +30,46 @@ namespace {{.PackageName}} {
 
 {{ define "message" }}
 #pragma region "{{.ClassName}}"
-class {{.ClassName}} {
-	static constexpr int MaxField = {{.DirtyCount}};
-public:
-	{{range .Enums}}
-	enum {{.DefName}}{ 
-		{{range .Values}}{{.EName}} = {{.ENum}},
+	class {{.ClassName}} {
+		static constexpr int MaxField = {{.DirtyCount}};
+	public:
+		{{range .Enums}}
+		enum {{.DefName}}{ 
+			{{range .Values}}{{.EName}} = {{.ENum}},
+			{{end}}
+		};
+		{{end}}
+
+		{{if gt (len .Nested) 0}}
+		//nested messages
+		{{range .Nested}}
+			{{ template "message" .}}
+		{{end}}
+		{{end}}
+
+		/////////////getters & setters
+		{{range .Fields}}{{.Getter}}
+		{{.Setter}}	{{if .Adder}}
+		{{.Adder}}{{end}} {{if .Cleaner}}
+		{{.Cleaner}}{{end}}
+		{{end}}
+		/////////////getters & setters
+
+		{{.ClassName}}();
+		explicit {{.ClassName}}(std::string_view);
+		std::string Serialize() const;
+		bool Unserialize(const uint8_t *_data, size_t len);
+		bool IsValid() const { return Valid; }
+		static void RegisterToAngelScript(asIScriptEngine *engine);
+
+	private:
+		bool 	Valid;
+		{{if gt .DirtyCount 0}}uint8_t	DirtyMask[(MaxField+7)/8];
+		{{end}}
+		
+		{{range .Fields}}{{.TypeName}} {{.FieldName}}_{{if .DefaultValue}} = {{.DefaultValue}}{{end}};
 		{{end}}
 	};
-	{{end}}
-
-	{{if gt (len .Nested) 0}}
-	//nested messages
-	{{range .Nested}}
-		{{ template "message" .}}
-	{{end}}
-	{{end}}
-
-	/////////////getters & setters
-	{{range .Fields}}{{.Getter}}
-	{{.Setter}}	{{if .Adder}}
-	{{.Adder}}{{end}} {{if .Cleaner}}
-	{{.Cleaner}}{{end}}
-	{{end}}
-	/////////////getters & setters
-
-	{{.ClassName}}();
-	explicit {{.ClassName}}(std::string_view);
-	std::string Serialize() const;
-	bool Unserialize(const uint8_t *_data, size_t len);
-	bool IsValid() const { return Valid; }
-	static void RegisterToAngelScript(asIScriptEngine *engine);
-
-private:
-	bool 	Valid;
-	{{if gt .DirtyCount 0}}uint8_t	DirtyMask[(MaxField+7)/8];
-	{{end}}
-	
-	{{range .Fields}}{{.TypeName}} {{.FieldName}}_{{if .DefaultValue}} = {{.DefaultValue}}{{end}};
-	{{end}}
-};
 #pragma endregion
 {{ end }}
 
@@ -171,7 +171,7 @@ var asprotoNative = map[protoreflect.Kind]typeMapper{
 	protoreflect.BytesKind:  {"std::vector<uint8_t>", "", "DecodeByte", "", "EncodeBytes", ""},
 }
 
-func asparseMessageField(classDef *ClassDef, fd protoreflect.FieldDescriptor, scopeTracker *scopeResolver) {
+func asParseMessageField(classDef *ClassDef, fd protoreflect.FieldDescriptor, scopeTracker *scopeResolver) {
 	var isRepeated = fd.Cardinality() == protoreflect.Repeated
 	var formater string = "%s"
 	if isRepeated {
@@ -189,12 +189,15 @@ func asparseMessageField(classDef *ClassDef, fd protoreflect.FieldDescriptor, sc
 		if isRepeated {
 			fieldInfo.EncodeMethod = n.encodeRepMethod
 			fieldInfo.DecodeMethod = n.decodeRepMethod
-			fieldInfo.EncodeCode = fmt.Sprintf("encoder.%s(%d, %s_);", n.encodeRepMethod, fieldInfo.Number, fieldInfo.FieldName)
-			fieldInfo.DecodeCode = fmt.Sprintf("decoder.%s(%s_);", n.decodeRepMethod, fieldInfo.FieldName)
+			fieldInfo.EncodeCode = fmt.Sprintf("encoder.%s(%d, %s_);",
+				n.encodeRepMethod, fieldInfo.Number, fieldInfo.FieldName)
+			fieldInfo.DecodeCode = fmt.Sprintf("decoder.%s(%s_);",
+				n.decodeRepMethod, fieldInfo.FieldName)
 		} else {
 			fieldInfo.EncodeMethod = n.encodeMethod
 			fieldInfo.DecodeMethod = n.decodeMethod
-			fieldInfo.EncodeCode = fmt.Sprintf("encoder.%s(%d, %s_);", n.encodeMethod, fieldInfo.Number, fieldInfo.FieldName)
+			fieldInfo.EncodeCode = fmt.Sprintf("encoder.%s(%d, %s_);",
+				n.encodeMethod, fieldInfo.Number, fieldInfo.FieldName)
 			fieldInfo.DecodeCode = fmt.Sprintf("%s_ = decoder.%s();",
 				fieldInfo.FieldName, n.decodeMethod)
 			fieldInfo.DefaultValue = n.zeroValue
@@ -202,12 +205,15 @@ func asparseMessageField(classDef *ClassDef, fd protoreflect.FieldDescriptor, sc
 	} else {
 		if fd.Kind() == protoreflect.MessageKind {
 			if isRepeated {
-				fieldInfo.EncodeCode = fmt.Sprintf("for (const auto &v: %s_){ encoder.EncodeSubmessage(%d, v); }", fieldInfo.FieldName, fieldInfo.Number)
-				fieldInfo.DecodeCode = fmt.Sprintf("{ decoder.DecodeRepSubmessage(%s_); }",
+				fieldInfo.EncodeCode = fmt.Sprintf("encoder.EncodeRepSubmessage(%d, %s_);",
+					fieldInfo.Number, fieldInfo.FieldName)
+				fieldInfo.DecodeCode = fmt.Sprintf("decoder.DecodeRepSubmessage(%s_);",
 					fieldInfo.FieldName)
 			} else {
-				fieldInfo.EncodeCode = fmt.Sprintf("encoder.EncodeSubmessage(%d, %s_);", fieldInfo.Number, fieldInfo.FieldName)
-				fieldInfo.DecodeCode = fmt.Sprintf("{auto v = decoder.DecodeSubmessage(); %s_.Unserialize((const uint8_t*)v.data(), v.length()); }", fieldInfo.FieldName)
+				fieldInfo.EncodeCode = fmt.Sprintf("encoder.EncodeSubmessage(%d, %s_);",
+					fieldInfo.Number, fieldInfo.FieldName)
+				fieldInfo.DecodeCode = fmt.Sprintf("{auto v = decoder.DecodeSubmessage(); %s_.Unserialize((const uint8_t*)v.data(), v.length()); }",
+					fieldInfo.FieldName)
 			}
 			cppTypeName := scopeTracker.DescopedName(string(fd.Message().FullName()))
 			fieldInfo.TypeName = fmt.Sprintf(formater, cppTypeName)
@@ -234,27 +240,40 @@ func asparseMessageField(classDef *ClassDef, fd protoreflect.FieldDescriptor, sc
 			protoreflect.Sfixed32Kind, protoreflect.Fixed32Kind,
 			protoreflect.Sfixed64Kind, protoreflect.Fixed64Kind,
 			protoreflect.FloatKind, protoreflect.DoubleKind:
-			fieldInfo.Getter = fmt.Sprintf("%s Get%s(int idx) const { return %s_[idx]; }", n.cppType, capName, fieldInfo.FieldName)
-			fieldInfo.Setter = fmt.Sprintf("void Set%s(int idx, %s value) { %s_[idx] = value; }", capName, n.cppType, fieldInfo.FieldName)
-			fieldInfo.Adder = fmt.Sprintf("void Append%s(%s value) {%s_.push_back(value);}", capName, n.cppType, fieldInfo.FieldName)
-			fieldInfo.Cleaner = fmt.Sprintf("void Clear%s() {%s_.clear();}", capName, fieldInfo.FieldName)
+			fieldInfo.Getter = fmt.Sprintf("%s Get%s(int idx) const { return %s_[idx]; }",
+				n.cppType, capName, fieldInfo.FieldName)
+			fieldInfo.Setter = fmt.Sprintf("void Set%s(int idx, %s value) { %s_[idx] = value; }",
+				capName, n.cppType, fieldInfo.FieldName)
+			fieldInfo.Adder = fmt.Sprintf("void Append%s(%s value) {%s_.push_back(value);}",
+				capName, n.cppType, fieldInfo.FieldName)
+			fieldInfo.Cleaner = fmt.Sprintf("void Clear%s() {%s_.clear();}",
+				capName, fieldInfo.FieldName)
 
 		case protoreflect.StringKind:
-			fieldInfo.Getter = fmt.Sprintf("std::string Get%s(int idx) const { return %s_[idx];}", capName, fieldInfo.FieldName)
-			fieldInfo.Setter = fmt.Sprintf("void Set%s(int idx, const std::string &value) { %s_[idx] = value; }", capName, fieldInfo.FieldName)
-			fieldInfo.Adder = fmt.Sprintf("void Append%s(const std::string &value) {%s_.push_back(value);}", capName, fieldInfo.FieldName)
-			fieldInfo.Cleaner = fmt.Sprintf("void Clear%s() {%s_.clear();}", capName, fieldInfo.FieldName)
+			fieldInfo.Getter = fmt.Sprintf("std::string Get%s(int idx) const { return %s_[idx];}",
+				capName, fieldInfo.FieldName)
+			fieldInfo.Setter = fmt.Sprintf("void Set%s(int idx, const std::string &value) { %s_[idx] = value; }",
+				capName, fieldInfo.FieldName)
+			fieldInfo.Adder = fmt.Sprintf("void Append%s(const std::string &value) {%s_.push_back(value);}",
+				capName, fieldInfo.FieldName)
+			fieldInfo.Cleaner = fmt.Sprintf("void Clear%s() {%s_.clear();}",
+				capName, fieldInfo.FieldName)
 
 		case protoreflect.BytesKind:
-			fieldInfo.Getter = fmt.Sprintf("std::vector<uint8_t> Get%s() const { return %s_; }", capName, fieldInfo.FieldName)
-			fieldInfo.Setter = fmt.Sprintf("void Set%s(const std::vector<uint8_t> &value) { %s_ = value; }", capName, fieldInfo.FieldName)
+			fieldInfo.Getter = fmt.Sprintf("std::vector<uint8_t> Get%s() const { return %s_; }",
+				capName, fieldInfo.FieldName)
+			fieldInfo.Setter = fmt.Sprintf("void Set%s(const std::vector<uint8_t> &value) { %s_ = value; }",
+				capName, fieldInfo.FieldName)
 
 		case protoreflect.MessageKind:
-			fieldInfo.Getter = fmt.Sprintf("const %s& Get%s() const {return %s_;}", fieldInfo.TypeName, capName, fieldInfo.FieldName)
-			fieldInfo.Setter = fmt.Sprintf("%s& Mutable%s() {return %s_;} ", fieldInfo.TypeName, capName, fieldInfo.FieldName)
+			fieldInfo.Getter = fmt.Sprintf("const %s& Get%s() const {return %s_;}",
+				fieldInfo.TypeName, capName, fieldInfo.FieldName)
+			fieldInfo.Setter = fmt.Sprintf("%s& Mutable%s() {return %s_;} ",
+				fieldInfo.TypeName, capName, fieldInfo.FieldName)
 
 		}
 	} else {
+
 		switch fd.Kind() {
 		case protoreflect.BoolKind,
 			protoreflect.Int32Kind, protoreflect.Sint32Kind, protoreflect.Uint32Kind,
@@ -266,21 +285,28 @@ func asparseMessageField(classDef *ClassDef, fd protoreflect.FieldDescriptor, sc
 			fieldInfo.DirtyIndex = classDef.DirtyCount
 			classDef.DirtyCount++
 
-			fieldInfo.Getter = fmt.Sprintf("%s Get%s() const { return %s_; }", n.cppType, capName, fieldInfo.FieldName)
+			fieldInfo.Getter = fmt.Sprintf("%s Get%s() const { return %s_; }",
+				n.cppType, capName, fieldInfo.FieldName)
 			fieldInfo.Setter = fmt.Sprintf("void Set%s(%s value) { %s_ = value; DirtyMask[%d] |= 0x%X; }",
 				capName, n.cppType, fieldInfo.FieldName, fieldInfo.DirtyIndex/8, (1 << (fieldInfo.DirtyIndex % 8)))
 
 		case protoreflect.StringKind:
-			fieldInfo.Getter = fmt.Sprintf("std::string Get%s() const { return %s_;}", capName, fieldInfo.FieldName)
-			fieldInfo.Setter = fmt.Sprintf("void Set%s(const std::string &value) { %s_ = value; }", capName, fieldInfo.FieldName)
+			fieldInfo.Getter = fmt.Sprintf("std::string Get%s() const { return %s_;}",
+				capName, fieldInfo.FieldName)
+			fieldInfo.Setter = fmt.Sprintf("void Set%s(const std::string &value) { %s_ = value; }",
+				capName, fieldInfo.FieldName)
 
 		case protoreflect.BytesKind:
-			fieldInfo.Getter = fmt.Sprintf("std::vector<uint8_t> Get%s() const { return %s_; }", capName, fieldInfo.FieldName)
-			fieldInfo.Setter = fmt.Sprintf("void Set%s(const std::vector<uint8_t> &value) { %s_ = value; }", capName, fieldInfo.FieldName)
+			fieldInfo.Getter = fmt.Sprintf("std::vector<uint8_t> Get%s() const { return %s_; }",
+				capName, fieldInfo.FieldName)
+			fieldInfo.Setter = fmt.Sprintf("void Set%s(const std::vector<uint8_t> &value) { %s_ = value; }",
+				capName, fieldInfo.FieldName)
 
 		case protoreflect.MessageKind:
-			fieldInfo.Getter = fmt.Sprintf("const %s& Get%s() const { return %s_; }", fieldInfo.TypeName, capName, fieldInfo.FieldName)
-			fieldInfo.Setter = fmt.Sprintf("%s& Mutable%s() { return %s_; }", fieldInfo.TypeName, capName, fieldInfo.FieldName)
+			fieldInfo.Getter = fmt.Sprintf("const %s& Get%s() const { return %s_; }",
+				fieldInfo.TypeName, capName, fieldInfo.FieldName)
+			fieldInfo.Setter = fmt.Sprintf("%s& Mutable%s() { return %s_; }",
+				fieldInfo.TypeName, capName, fieldInfo.FieldName)
 		}
 
 	}
@@ -296,14 +322,14 @@ func asparseEnum(e *protogen.Enum) *EnumDef {
 	return res
 }
 
-func asparseMessageClass(msg *protogen.Message, scopeTracker *scopeResolver) *ClassDef {
+func asParseMessageClass(msg *protogen.Message, scopeTracker *scopeResolver) *ClassDef {
 	var newClass *ClassDef = new(ClassDef)
 	newClass.ClassName = string(msg.Desc.FullName().Name())
 
 	scopeTracker.ScopeIn(newClass.ClassName)
 
 	for _, subMessage := range msg.Messages {
-		var subClass = asparseMessageClass(subMessage, scopeTracker)
+		var subClass = asParseMessageClass(subMessage, scopeTracker)
 		newClass.Nested = append(newClass.Nested, subClass)
 	}
 
@@ -312,7 +338,7 @@ func asparseMessageClass(msg *protogen.Message, scopeTracker *scopeResolver) *Cl
 	}
 
 	for _, field := range msg.Fields {
-		asparseMessageField(newClass, field.Desc, scopeTracker)
+		asParseMessageField(newClass, field.Desc, scopeTracker)
 	}
 
 	scopeTracker.ScopeOut()
@@ -360,7 +386,7 @@ func generateAs(gen *protogen.Plugin, file *protogen.File) {
 
 	scoper.ScopeIn(*file.Proto.Package)
 	for _, msg := range file.Messages {
-		pdata.ClassDefinations = append(pdata.ClassDefinations, asparseMessageClass(msg, scoper))
+		pdata.ClassDefinations = append(pdata.ClassDefinations, asParseMessageClass(msg, scoper))
 	}
 	scoper.ScopeOut()
 

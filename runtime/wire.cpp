@@ -251,20 +251,9 @@ WireEncoder& WireEncoder::EncodeDouble(uint64_t fn, double v){
 }
 
 WireEncoder& WireEncoder::EncodeRepString(uint64_t fn, const std::vector<std::string>&vs) {
-    if (vs.size() == 0) return *this; \
-    WriteTag(fn, WT_LEN); \
-    off64_t oldoffset = pcur-ps; \
-    for (const auto &v : vs) { \
-        EncodeString(fn, v); \
-    } \
-    CheckSpace(10); \
-    size_t totallen = pcur-(ps+oldoffset); \
-    size_t lenvarint = VarintLen(totallen); \
-    uint8_t *pold = ps+oldoffset;\
-    memmove(pold+lenvarint, pold, totallen); \
-    pcur = pold; WriteVarint(totallen); /*patch back*/\
-    pcur += totallen; \
-    return *this; \
+    for (auto &v : vs) {
+        EncodeString(fn, v);
+    }
 }
 
 EncodeRepTempl(Sfixed32, int32_t, KeepCV, pbfixed32 u; u.i32=q; WriteI32(u.i32))

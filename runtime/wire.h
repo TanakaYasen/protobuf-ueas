@@ -98,6 +98,12 @@ public:
     WireEncoder& EncodeRepUint64(uint64_t fn, const std::vector<uint64_t>&);
 
     WireEncoder& EncodeRepString(uint64_t fn, const std::vector<std::string>&vs);
+    template <typename T>
+    WireEncoder& EncodeRepSubmessage(uint64_t fn, const std::vector<T>&vs) {
+        for (auto &v : vs) {
+            EncodeSubmessage(fn, v);
+        }
+    }
 };
 
 
