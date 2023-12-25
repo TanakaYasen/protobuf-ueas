@@ -90,7 +90,6 @@ const cppTemplCode = `
 #include "../runtime/wire.h"
 #include <angelscript.h>
 
-
 namespace {{.PackageName}} {
 	{{ range .ClassDefinations}}
 
@@ -152,23 +151,23 @@ namespace {{.PackageName}} {
 `
 
 var asprotoNative = map[protoreflect.Kind]typeMapper{
-	protoreflect.BoolKind:   {"bool", "false", "DecodeBool", "DecodeRepBool", "EncodeBool", "EncodeRepBool"},
-	protoreflect.Int32Kind:  {"int32_t", "0", "DecodeInt32", "DecodeRepInt32", "EncodeInt32", "EncodeRepInt32"},
-	protoreflect.Sint32Kind: {"int32_t", "0", "DecodeSint32", "DecodeRepSint32", "EncodeSint32", "EncodeRepSint32"},
-	protoreflect.Uint32Kind: {"uint32_t", "0", "DecodeUint32", "DecodeRepUint32", "EncodeUint32", "EncodeRepUint32"},
-	protoreflect.Int64Kind:  {"int64_t", "0", "DecodeInt64", "DecodeRepInt64", "EncodeInt64", "EncodeRepInt64"},
-	protoreflect.Sint64Kind: {"int64_t", "0", "DecodeSint64", "DecodeRepSint64", "EncodeSint64", "EncodeRepSint64"},
-	protoreflect.Uint64Kind: {"uint64_t", "0", "DecodeUint64", "DecodeRepUint64", "EncodeUint64", "EncodeRepUint64"},
+	protoreflect.BoolKind:   {"bool", "bool", "false", "DecodeBool", "DecodeRepBool", "EncodeBool", "EncodeRepBool"},
+	protoreflect.Int32Kind:  {"int32_t", "int32_t", "0", "DecodeInt32", "DecodeRepInt32", "EncodeInt32", "EncodeRepInt32"},
+	protoreflect.Sint32Kind: {"int32_t", "int32_t", "0", "DecodeSint32", "DecodeRepSint32", "EncodeSint32", "EncodeRepSint32"},
+	protoreflect.Uint32Kind: {"uint32_t", "uint32_t", "0", "DecodeUint32", "DecodeRepUint32", "EncodeUint32", "EncodeRepUint32"},
+	protoreflect.Int64Kind:  {"int64_t", "int64_t", "0", "DecodeInt64", "DecodeRepInt64", "EncodeInt64", "EncodeRepInt64"},
+	protoreflect.Sint64Kind: {"int64_t", "int64_t", "0", "DecodeSint64", "DecodeRepSint64", "EncodeSint64", "EncodeRepSint64"},
+	protoreflect.Uint64Kind: {"uint64_t", "uint64_t", "0", "DecodeUint64", "DecodeRepUint64", "EncodeUint64", "EncodeRepUint64"},
 
-	protoreflect.Sfixed32Kind: {"int32_t", "0", "DecodeSfixed32", "DecodeRepSfixed32", "EncodeSfixed32", "EncodeRepSfixed32"},
-	protoreflect.Fixed32Kind:  {"uint32_t", "0", "DecodeFixed32", "DecodeRepFixed32", "EncodeFixed32", "EncodeRepFixed32"},
-	protoreflect.Sfixed64Kind: {"int64_t", "0", "DecodeSfixed64", "DecodeRepSfixed64", "EncodeSfixed64", "EncodeRepSfixed64"},
-	protoreflect.Fixed64Kind:  {"uint64_t", "0", "DecodeFixed64", "DecodeRepFixed64", "EncodeFixed64", "EncodeRepFixed64"},
+	protoreflect.Sfixed32Kind: {"int32_t", "int32_t", "0", "DecodeSfixed32", "DecodeRepSfixed32", "EncodeSfixed32", "EncodeRepSfixed32"},
+	protoreflect.Fixed32Kind:  {"uint32_t", "uint32_t", "0", "DecodeFixed32", "DecodeRepFixed32", "EncodeFixed32", "EncodeRepFixed32"},
+	protoreflect.Sfixed64Kind: {"int64_t", "int64_t", "0", "DecodeSfixed64", "DecodeRepSfixed64", "EncodeSfixed64", "EncodeRepSfixed64"},
+	protoreflect.Fixed64Kind:  {"uint64_t", "uint64_t", "0", "DecodeFixed64", "DecodeRepFixed64", "EncodeFixed64", "EncodeRepFixed64"},
 
-	protoreflect.FloatKind:  {"float", "0.f", "DecodeFloat", "DecodeRepFloat", "EncodeFloat", "EncodeRepFloat"},
-	protoreflect.DoubleKind: {"double", "0.0", "DecodeDouble", "DecodeRepDouble", "EncodeDouble", "EncodeRepDouble"},
-	protoreflect.StringKind: {"std::string", "", "DecodeString", "DecodeRepString", "EncodeString", "EncodeRepString"},
-	protoreflect.BytesKind:  {"std::vector<uint8_t>", "", "DecodeByte", "", "EncodeBytes", ""},
+	protoreflect.FloatKind:  {"float", "float", "0.f", "DecodeFloat", "DecodeRepFloat", "EncodeFloat", "EncodeRepFloat"},
+	protoreflect.DoubleKind: {"double", "double", "0.0", "DecodeDouble", "DecodeRepDouble", "EncodeDouble", "EncodeRepDouble"},
+	protoreflect.StringKind: {"std::string", "const std::string &", "", "DecodeString", "DecodeRepString", "EncodeString", "EncodeRepString"},
+	protoreflect.BytesKind:  {"std::vector<uint8_t>", "const std::vector<uint8_t> &", "", "DecodeByte", "", "EncodeBytes", ""},
 }
 
 func asParseMessageField(classDef *ClassDef, fd protoreflect.FieldDescriptor, scopeTracker *scopeResolver) {
@@ -212,7 +211,7 @@ func asParseMessageField(classDef *ClassDef, fd protoreflect.FieldDescriptor, sc
 			} else {
 				fieldInfo.EncodeCode = fmt.Sprintf("encoder.EncodeSubmessage(%d, %s_);",
 					fieldInfo.Number, fieldInfo.FieldName)
-				fieldInfo.DecodeCode = fmt.Sprintf("{auto v = decoder.DecodeSubmessage(); %s_.Unserialize((const uint8_t*)v.data(), v.length()); }",
+				fieldInfo.DecodeCode = fmt.Sprintf("decoder.DecodeRepSubmessage(%s_);",
 					fieldInfo.FieldName)
 			}
 			cppTypeName := scopeTracker.DescopedName(string(fd.Message().FullName()))
@@ -231,78 +230,54 @@ func asParseMessageField(classDef *ClassDef, fd protoreflect.FieldDescriptor, sc
 
 	capName := strings.ToUpper(fieldInfo.FieldName[0:1]) + fieldInfo.FieldName[1:]
 
-	if isRepeated {
+	switch fd.Kind() {
+	case protoreflect.BoolKind,
+		protoreflect.Int32Kind, protoreflect.Sint32Kind, protoreflect.Uint32Kind,
+		protoreflect.Int64Kind, protoreflect.Sint64Kind, protoreflect.Uint64Kind,
+		protoreflect.Sfixed32Kind, protoreflect.Fixed32Kind,
+		protoreflect.Sfixed64Kind, protoreflect.Fixed64Kind,
+		protoreflect.FloatKind, protoreflect.DoubleKind,
+		protoreflect.StringKind, protoreflect.BytesKind:
 
-		switch fd.Kind() {
-		case protoreflect.BoolKind,
-			protoreflect.Int32Kind, protoreflect.Sint32Kind, protoreflect.Uint32Kind,
-			protoreflect.Int64Kind, protoreflect.Sint64Kind, protoreflect.Uint64Kind,
-			protoreflect.Sfixed32Kind, protoreflect.Fixed32Kind,
-			protoreflect.Sfixed64Kind, protoreflect.Fixed64Kind,
-			protoreflect.FloatKind, protoreflect.DoubleKind:
+		if isRepeated {
 			fieldInfo.Getter = fmt.Sprintf("%s Get%s(int idx) const { return %s_[idx]; }",
 				n.cppType, capName, fieldInfo.FieldName)
 			fieldInfo.Setter = fmt.Sprintf("void Set%s(int idx, %s value) { %s_[idx] = value; }",
-				capName, n.cppType, fieldInfo.FieldName)
+				capName, n.asArgType, fieldInfo.FieldName)
 			fieldInfo.Adder = fmt.Sprintf("void Append%s(%s value) {%s_.push_back(value);}",
-				capName, n.cppType, fieldInfo.FieldName)
+				capName, n.asArgType, fieldInfo.FieldName)
 			fieldInfo.Cleaner = fmt.Sprintf("void Clear%s() {%s_.clear();}",
 				capName, fieldInfo.FieldName)
+		} else {
+			if fd.Kind() == protoreflect.StringKind ||
+				fd.Kind() == protoreflect.BytesKind {
 
-		case protoreflect.StringKind:
-			fieldInfo.Getter = fmt.Sprintf("std::string Get%s(int idx) const { return %s_[idx];}",
-				capName, fieldInfo.FieldName)
-			fieldInfo.Setter = fmt.Sprintf("void Set%s(int idx, const std::string &value) { %s_[idx] = value; }",
-				capName, fieldInfo.FieldName)
-			fieldInfo.Adder = fmt.Sprintf("void Append%s(const std::string &value) {%s_.push_back(value);}",
-				capName, fieldInfo.FieldName)
-			fieldInfo.Cleaner = fmt.Sprintf("void Clear%s() {%s_.clear();}",
-				capName, fieldInfo.FieldName)
+				fieldInfo.Getter = fmt.Sprintf("%s Get%s() const { return %s_; }",
+					n.cppType, capName, fieldInfo.FieldName)
+				fieldInfo.Setter = fmt.Sprintf("void Set%s(%s value) { %s_ = value; }",
+					capName, n.asArgType, fieldInfo.FieldName)
+			} else {
 
-		case protoreflect.BytesKind:
-			fieldInfo.Getter = fmt.Sprintf("std::vector<uint8_t> Get%s() const { return %s_; }",
-				capName, fieldInfo.FieldName)
-			fieldInfo.Setter = fmt.Sprintf("void Set%s(const std::vector<uint8_t> &value) { %s_ = value; }",
-				capName, fieldInfo.FieldName)
+				fieldInfo.DirtyIndex = classDef.DirtyCount
+				classDef.DirtyCount++
 
-		case protoreflect.MessageKind:
+				fieldInfo.Getter = fmt.Sprintf("%s Get%s() const { return %s_; }",
+					n.cppType, capName, fieldInfo.FieldName)
+				fieldInfo.Setter = fmt.Sprintf("void Set%s(%s value) { %s_ = value; DirtyMask[%d] |= 0x%X; }",
+					capName, n.asArgType, fieldInfo.FieldName, fieldInfo.DirtyIndex/8, (1 << (fieldInfo.DirtyIndex % 8)))
+			}
+		}
+
+	case protoreflect.MessageKind:
+		if isRepeated {
+
 			fieldInfo.Getter = fmt.Sprintf("const %s& Get%s() const {return %s_;}",
 				fieldInfo.TypeName, capName, fieldInfo.FieldName)
 			fieldInfo.Setter = fmt.Sprintf("%s& Mutable%s() {return %s_;} ",
 				fieldInfo.TypeName, capName, fieldInfo.FieldName)
 
-		}
-	} else {
+		} else {
 
-		switch fd.Kind() {
-		case protoreflect.BoolKind,
-			protoreflect.Int32Kind, protoreflect.Sint32Kind, protoreflect.Uint32Kind,
-			protoreflect.Int64Kind, protoreflect.Sint64Kind, protoreflect.Uint64Kind,
-			protoreflect.Sfixed32Kind, protoreflect.Fixed32Kind,
-			protoreflect.Sfixed64Kind, protoreflect.Fixed64Kind,
-			protoreflect.FloatKind, protoreflect.DoubleKind:
-
-			fieldInfo.DirtyIndex = classDef.DirtyCount
-			classDef.DirtyCount++
-
-			fieldInfo.Getter = fmt.Sprintf("%s Get%s() const { return %s_; }",
-				n.cppType, capName, fieldInfo.FieldName)
-			fieldInfo.Setter = fmt.Sprintf("void Set%s(%s value) { %s_ = value; DirtyMask[%d] |= 0x%X; }",
-				capName, n.cppType, fieldInfo.FieldName, fieldInfo.DirtyIndex/8, (1 << (fieldInfo.DirtyIndex % 8)))
-
-		case protoreflect.StringKind:
-			fieldInfo.Getter = fmt.Sprintf("std::string Get%s() const { return %s_;}",
-				capName, fieldInfo.FieldName)
-			fieldInfo.Setter = fmt.Sprintf("void Set%s(const std::string &value) { %s_ = value; }",
-				capName, fieldInfo.FieldName)
-
-		case protoreflect.BytesKind:
-			fieldInfo.Getter = fmt.Sprintf("std::vector<uint8_t> Get%s() const { return %s_; }",
-				capName, fieldInfo.FieldName)
-			fieldInfo.Setter = fmt.Sprintf("void Set%s(const std::vector<uint8_t> &value) { %s_ = value; }",
-				capName, fieldInfo.FieldName)
-
-		case protoreflect.MessageKind:
 			fieldInfo.Getter = fmt.Sprintf("const %s& Get%s() const { return %s_; }",
 				fieldInfo.TypeName, capName, fieldInfo.FieldName)
 			fieldInfo.Setter = fmt.Sprintf("%s& Mutable%s() { return %s_; }",
@@ -313,7 +288,7 @@ func asParseMessageField(classDef *ClassDef, fd protoreflect.FieldDescriptor, sc
 	classDef.Fields = append(classDef.Fields, fieldInfo)
 }
 
-func asparseEnum(e *protogen.Enum) *EnumDef {
+func asParseEnum(e *protogen.Enum) *EnumDef {
 	var res = new(EnumDef)
 	res.DefName = string(e.Desc.Name())
 	for _, v := range e.Values {
@@ -334,7 +309,7 @@ func asParseMessageClass(msg *protogen.Message, scopeTracker *scopeResolver) *Cl
 	}
 
 	for _, subEnum := range msg.Enums {
-		newClass.Enums = append(newClass.Enums, asparseEnum(subEnum))
+		newClass.Enums = append(newClass.Enums, asParseEnum(subEnum))
 	}
 
 	for _, field := range msg.Fields {
@@ -359,15 +334,6 @@ func generateAs(gen *protogen.Plugin, file *protogen.File) {
 		SourceFile:  pathStr,
 		ProtoName:   baseName,
 		PackageName: *file.Proto.Package,
-		HIncludes: []string{
-			"CoreMinimal.h",
-			"Container/TArray.h",
-			"Container/TMap.h",
-		},
-		CppIncludes: []string{
-			baseName + ".h",
-			"uewire.h",
-		},
 	}
 
 	outputCppFile, err := os.OpenFile(outputCpp, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0644)

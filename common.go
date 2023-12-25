@@ -44,7 +44,6 @@ type ParsedStruct struct {
 	SourceFile        string
 	PackageName       string
 	ProtoName         string
-	HIncludes         []string
 	CppIncludes       []string
 	BracketIncludings []string
 	ClassDefinations  []*ClassDef
@@ -53,6 +52,7 @@ type ParsedStruct struct {
 
 type typeMapper struct {
 	cppType         string
+	asArgType       string
 	zeroValue       string
 	decodeMethod    string
 	decodeRepMethod string
