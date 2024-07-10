@@ -1,0 +1,55 @@
+syntax = "proto3";
+package game;
+
+option go_package = "/game";
+
+message Void {
+}
+
+message Package {
+	string route = 1;
+	uint64 sessionId = 2;
+	int32 errCode = 3;
+	bytes data = 4;
+	//node timestamp 之类的
+}
+
+message EnterSceneReq {
+  int32 sceneId = 1;
+}
+
+message LeaveSceneReq {
+  int32 sceneId = 1;
+}
+
+message MoveReq {
+	float x = 1;
+	float y = 2;
+	float z = 3;
+}
+message MoveResp {
+	float x = 1;
+	float y = 2;
+	float z = 3;
+}
+
+
+service GameC2S {
+  rpc EnterScene (EnterSceneReq) returns (Void);
+  rpc LeaveScene (LeaveSceneReq) returns (Void);
+  rpc DoMovement (MoveReq) returns (MoveResp);
+}
+
+
+message WorldInitReq {
+		
+}
+
+message SpawnReq {
+		
+}
+
+service GameS2C {
+  rpc Spawn (SpawnReq) returns (Void);
+  rpc WorldInit (WorldInitReq) returns (Void);
+}

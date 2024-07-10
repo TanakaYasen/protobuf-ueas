@@ -28,6 +28,9 @@ option go_package = "github.com/protocolbuffers/protobuf/examples/go/tutorialpb"
 // [END go_declaration]
 
 // [START messages]
+
+
+
 message Person {
   string name = 1;
   int32 id = 2;  // Unique ID number for this person.
@@ -53,14 +56,6 @@ message AddressBook {
 }
 // [END messages]
 
-message Test2 {
-  uint64   u64 = 1;
-  fixed64   fix=2;
-  double    d = 5;
-  float     f = 7;
-  int32 i32 = 12;
-}
-
 message Test1 {
   string    name = 1;
   repeated  int64     age = 2;
@@ -72,6 +67,11 @@ message Test1 {
   Test2     test2 = 8;
 }
 
-message Empty {
-  
+message Test2 {
+  uint64   u64 = 1;
+  fixed64   fix=2;
+  double    d = 5;
+  float     f = 7;
+  int32 i32 = 12;
 }
+

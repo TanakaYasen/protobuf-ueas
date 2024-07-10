@@ -32,7 +32,7 @@ func main1() {
 			if !f.Generate {
 				continue
 			}
-			//generateFile(plugin, f)
+			generateAs(plugin, f)
 		}
 
 		return nil
@@ -51,9 +51,7 @@ func main() {
 	log.SetOutput(logFile)
 
 	protogen.Options{}.Run(func(plugin *protogen.Plugin) error {
-
-		log.Printf(plugin.Request.GetParameter())
-
+		log.Println(plugin.Request.GetParameter())
 		for _, file := range plugin.Files {
 
 			if !file.Generate {
@@ -61,7 +59,6 @@ func main() {
 			}
 			generateUeas(plugin, file)
 		}
-
 		return nil
 	})
 }
