@@ -4,6 +4,9 @@ import (
 	"log"
 	"net"
 	game "protogen/generated/game"
+	"time"
+
+	proto "github.com/gogo/protobuf/proto"
 )
 
 type PlayerSession struct {
@@ -42,37 +45,49 @@ func (ps *PlayerSession) onRecv(buf []byte, disp *game.SvrGameC2SDispatcher) {
 	}
 }
 
-func NewPlayerSession(conn net.Conn) *PlayerSession {
+func NewPlayerSession(conn net.Conn, dispatcher *game.SvrGameC2SDispatcher) *PlayerSession {
 	var ps = new(PlayerSession)
 	ps.buffer = make([]byte, 0)
 	ps.count = 0
 	ps.conn = conn
+	ps.dispatcher = dispatcher
 	return ps
 }
 
 func main() {
-	listener, err := net.Listen("tcp", ":3389")
+	conn, err := net.Dial("tcp", ":3389")
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			return
-		}
+	var buf [1024]byte
+	ps := NewPlayerSession(conn, nil)
+	dx := game.NewGameC2SDispatcher(new(handlerCli), ps)
 
-		var buf [1024]byte
-		ps := NewPlayerSession(conn)
-		handler := new(handlerSvr)
-		dx := game.NewGameC2SDispatcher(handler, ps)
-
+	go func() {
+		var i uint64
 		for {
-			n, err := conn.Read(buf[:])
-			if err != nil {
-				break
-			}
-			ps.onRecv(buf[:n], dx)
+			var pkg = &game.Package{}
+			i++
+			pkg.SessionId = i
+			pkg.Route = "EnterScene"
+
+			var esreq = &game.EnterSceneReq{}
+			esreq.SceneId = int32(i * 2)
+			d, _ := proto.Marshal(esreq)
+			pkg.Data = d
+
+			d, _ = proto.Marshal(pkg)
+
+			ps.SendPackage(d)
+			time.Sleep(time.Second)
 		}
+	}()
+	for {
+		n, err := conn.Read(buf[:])
+		if err != nil {
+			break
+		}
+		ps.onRecv(buf[:n], dx)
 	}
 }

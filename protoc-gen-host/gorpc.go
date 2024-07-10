@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"path/filepath"
+	"strings"
 	"text/template"
 
 	"google.golang.org/protobuf/compiler/protogen"
@@ -24,12 +25,21 @@ type IClientConnection interface {
 
 {{range .ServerStubs}}
 
-type {{.ServiceName}}Dispatcher struct {
-	callbacks map[string]func(data []byte) []byte
-	handler {{.ServiceName}}DispatcherImpl
+// type implements DispatcherImpl is the real reactor
+//     and is born for New{{.ServiceName}}Dispatcher
+type {{.ServiceName}}DispatcherImpl interface {
+	{{- range .SvMethods}}
+	{{.MethodName}} ({{if not (eq .ReqMsg "Void") }} {{.ReqMsg}} {{end}}) {{if not (eq .RespMsg "Void") }}{{.RespMsg}}{{ end }}
+	{{- end}}
 }
 
-func (d *{{.ServiceName}}Dispatcher) OnHandlePkg(msg []byte) {
+type Svr{{.ServiceName}}Dispatcher struct {
+	callbacks map[string]func(data []byte) []byte
+	handler {{.ServiceName}}DispatcherImpl
+	connection IClientConnection
+}
+
+func (d *Svr{{.ServiceName}}Dispatcher) OnHandlePkg(msg []byte) {
 	req := Package{}
 	if err := proto.Unmarshal(msg, &req); err != nil {
 		return
@@ -49,23 +59,16 @@ func (d *{{.ServiceName}}Dispatcher) OnHandlePkg(msg []byte) {
 		if err != nil {
 			return
 		}
-		conn.SendPackage(rd)
+		d.connection.SendPackage(rd)
 	}
 }
-
-type {{.ServiceName}}DispatcherImpl interface {
-	// msgs
-	{{- range .SvMethods}}
-	{{.MethodName}} ({{if not (eq .ReqMsg "Void") }} {{.ReqMsg}} {{end}}) {{if not (eq .RespMsg "Void") }}{{.RespMsg}}{{ end }}
-	{{- end}}
-}
-
-
-func New{{.ServiceName}}Dispatcher(dis {{.ServiceName}}DispatcherImpl, conn IClientConnection) *{{.ServiceName}}Dispatcher {
-	var r = new({{.ServiceName}}Dispatcher)
-	r.handler = dis
-	r.conn = conn
-	r.callbacks = map[string]func([]byte)[]byte {
+	
+func New{{.ServiceName}}Dispatcher(dis {{.ServiceName}}DispatcherImpl, conn IClientConnection) *Svr{{.ServiceName}}Dispatcher {
+	var ret = new(Svr{{.ServiceName}}Dispatcher)
+	ret.handler = dis
+	ret.connection = conn
+	//hard-coded router
+	ret.callbacks = map[string]func([]byte)[]byte {
 	{{range .SvMethods}}
 		"{{- .MethodName}}": func(b []byte) []byte {
 			var request = {{.ReqMsg}}{}
@@ -74,18 +77,18 @@ func New{{.ServiceName}}Dispatcher(dis {{.ServiceName}}DispatcherImpl, conn ICli
 				return nil
 			}
 			{{- if not (eq .RespMsg "Void") }} 
-			var response = r.handler.{{.MethodName}}(request)
-			r.handler.{{.MethodName}}(request)
+			var response = ret.handler.{{.MethodName}}(request)
+			ret.handler.{{.MethodName}}(request)
 			d, _ := proto.Marshal(&response)
 			return d
 			{{ else }}
-			r.handler.{{.MethodName}}(request)
+			ret.handler.{{.MethodName}}(request)
 			return nil
 			{{- end }}
 		},
 	{{- end}}
 	}
-	return r
+	return ret
 }
 {{end}}
 `
@@ -99,73 +102,54 @@ import (
 	proto "github.com/gogo/protobuf/proto"
 )
 
-type IConn interface {
+type IServerConnection interface {
 	SendPackage([]byte)
+	Close()
 }
+
 
 {{range .ClientStubs}}
 
-type {{.ServiceName}}Dispatcher struct {
-	callbacks map[string]func(data []byte) []byte
+type Cli{{.ServiceName}}Dispatcher struct {
+	callbacks map[string]func(data []byte)
 	handler {{.ServiceName}}DispatcherImpl
+	connection IServerConnection
 }
 
-func (d *{{.ServiceName}}Dispatcher) OnHandlePkg(conn IConn, msg []byte) {
+func (d *Cli{{.ServiceName}}Dispatcher) OnHandlePkg(msg []byte) {
 	req := Package{}
 	if err := proto.Unmarshal(msg, &req); err != nil {
 		return
 	}
 	if cb, ok := d.callbacks[req.Route]; ok {
-		rp := cb(req.Data)
-		if len(rp) == 0 {
-			return
-		}
-		resp := Package{
-			Route:     req.Route,
-			SessionId: req.SessionId,
-			ErrCode:   0,
-			Data:      rp,
-		}
-		rd, err := proto.Marshal(&resp)
-		if err != nil {
-			return
-		}
-		conn.SendPackage(rd)
+		cb(req.Data)
 	}
 }
 
 type {{.ServiceName}}DispatcherImpl interface {
-	// msgs
 	{{- range .SvMethods}}
 	{{.MethodName}} ({{if not (eq .ReqMsg "Void") }} {{.ReqMsg}} {{end}}) {{if not (eq .RespMsg "Void") }}{{.RespMsg}}{{ end }}
 	{{- end}}
 }
 	
 
-func New{{.ServiceName}}Dispatcher(dis {{.ServiceName}}DispatcherImpl) *{{.ServiceName}}Dispatcher {
-	var r = new({{.ServiceName}}Dispatcher)
-	r.handler = dis
-	r.callbacks = map[string]func([]byte)[]byte {
-	{{range .SvMethods}}
-		"{{- .MethodName}}": func(b []byte) []byte {
+func New{{.ServiceName}}Dispatcher(dis {{.ServiceName}}DispatcherImpl, conn IServerConnection) *Cli{{.ServiceName}}Dispatcher {
+	var ret = new(Cli{{.ServiceName}}Dispatcher)
+	ret.handler = dis
+	ret.connection = conn
+	ret.callbacks = map[string]func([]byte) {
+	{{- range .SvMethods}}
+		"{{- .MethodName}}": func(b []byte) {
 			var request = {{.ReqMsg}}{}
 			err := proto.Unmarshal(b, &request)
 			if err != nil {
-				return nil
+				return
 			}
-			{{- if not (eq .RespMsg "Void") }} 
-			var response = r.handler.{{.MethodName}}(request)
-			r.handler.{{.MethodName}}(request)
-			d, _ := proto.Marshal(&response)
-			return d
-			{{ else }}
-			r.handler.{{.MethodName}}(request)
-			return nil
-			{{- end }}
+			ret.handler.{{.MethodName}}(request)
 		},
 	{{- end}}
 	}
-	return r
+	return ret
 }
 {{end}}
 `
@@ -198,14 +182,26 @@ func generateGoRpc(gen *protogen.Plugin, file *protogen.File) {
 	}
 
 	for _, s := range file.Services {
-		pdata.ServerStubs = append(pdata.ServerStubs, &ServiceDesc{ServiceName: string(s.Desc.Name())})
-		last := pdata.ServerStubs[len(pdata.ServerStubs)-1]
-		for _, m := range s.Methods {
-			last.SvMethods = append(last.SvMethods, ServiceMethod{
-				MethodName: m.GoName,
-				ReqMsg:     string(m.Input.Desc.Name()),
-				RespMsg:    string(m.Output.Desc.Name()),
-			})
+		if strings.Contains(string(s.Desc.Name()), "C2S") {
+			ele := &ServiceDesc{ServiceName: string(s.Desc.Name())}
+			for _, m := range s.Methods {
+				ele.SvMethods = append(ele.SvMethods, ServiceMethod{
+					MethodName: m.GoName,
+					ReqMsg:     string(m.Input.Desc.Name()),
+					RespMsg:    string(m.Output.Desc.Name()),
+				})
+			}
+			pdata.ServerStubs = append(pdata.ServerStubs, ele)
+		} else {
+			ele := &ServiceDesc{ServiceName: string(s.Desc.Name())}
+			for _, m := range s.Methods {
+				ele.SvMethods = append(ele.SvMethods, ServiceMethod{
+					MethodName: m.GoName,
+					ReqMsg:     string(m.Input.Desc.Name()),
+					RespMsg:    string(m.Output.Desc.Name()),
+				})
+			}
+			pdata.ClientStubs = append(pdata.ClientStubs, ele)
 		}
 	}
 
