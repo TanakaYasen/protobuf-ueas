@@ -10,7 +10,7 @@ type PlayerSession struct {
 	buffer     []byte
 	count      int64
 	conn       net.Conn
-	dispatcher *game.SvrGameC2SDispatcher
+	dispatcher *game.CliGameS2CDispatcher
 }
 
 func (ps *PlayerSession) SendPackage(buff []byte) {
