@@ -4,7 +4,7 @@ all:
 	cd protoc-gen-arpc && go build
 	
 	protoc --gogofast_out=./generated/ proto/game.proto
-	PATH=${PATH}:$(shell pwd)/protoc-gen-arpc/ protoc --arpc_out=generated --arpc_opt=xxxxxx proto/game.proto
+	PATH=${PATH}:$(shell pwd)/protoc-gen-arpc/ protoc --arpc_out=generated proto/game.proto
 	
 	mv generated/*.go generated/game
 	

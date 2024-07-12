@@ -7,8 +7,8 @@ message Void {
 }
 
 message Package {
-	string route = 1;
-	uint64 sessionId = 2;
+	string name = 1;		// 消息名称，用于寻找回调函数
+	uint32 sessionId = 2;
 	int32 errCode = 3;
 	bytes data = 4;
 	//node timestamp 之类的
@@ -33,23 +33,10 @@ message MoveResp {
 	float z = 3;
 }
 
-
+// c2s
 service GameC2S {
   rpc EnterScene (EnterSceneReq) returns (Void);
   rpc LeaveScene (LeaveSceneReq) returns (Void);
   rpc DoMovement (MoveReq) returns (MoveResp);
 }
 
-
-message WorldInitReq {
-		
-}
-
-message SpawnReq {
-		
-}
-
-service GameS2C {
-  rpc Spawn (SpawnReq) returns (Void);
-  rpc WorldInit (WorldInitReq) returns (Void);
-}

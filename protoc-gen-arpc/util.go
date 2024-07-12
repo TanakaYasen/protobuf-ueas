@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"strings"
+
+	"google.golang.org/protobuf/compiler/protogen"
 )
 
 func lowerIdent(s string) string {
@@ -69,4 +71,25 @@ func isEmpty(s string) bool {
 
 func isNotEmpty(s string) bool {
 	return s != "Void"
+}
+
+func postPrefix(s string) string {
+	if s == "Void" {
+		return "Send"
+	}
+	return "Call"
+}
+
+func getDirection(s protogen.Comments) string {
+	if strings.Contains(strings.ToLower(s.String()), "s2c") {
+		return "s2c"
+	}
+	if strings.Contains(strings.ToLower(s.String()), "c2s") {
+		return "s2c"
+	}
+	return ""
+}
+
+func getProtoFilePath(file *protogen.File) string {
+	return file.Desc.Path()
 }

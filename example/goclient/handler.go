@@ -1,20 +1,13 @@
 package main
 
 import (
+	"fmt"
 	. "protogen/generated/game"
 )
 
 type handlerCli struct {
 }
 
-func (*handlerCli) EnterScene(EnterSceneReq) {
-
-}
-
-func (*handlerCli) LeaveScene(LeaveSceneReq) {
-
-}
-
-func (*handlerCli) DoMovement(MoveReq) MoveResp {
-	return MoveResp{}
+func (*handlerCli) DoMovement(sessionId uint32, resp *MoveResp) {
+	fmt.Println("move", resp.X, resp.Y, resp.Z)
 }

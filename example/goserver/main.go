@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net"
 	game "protogen/generated/game"
@@ -10,7 +11,7 @@ type PlayerSession struct {
 	buffer     []byte
 	count      int64
 	conn       net.Conn
-	dispatcher *game.CliGameS2CDispatcher
+	dispatcher *game.GameC2SImplement
 }
 
 func (ps *PlayerSession) SendPackage(buff []byte) {
@@ -25,7 +26,7 @@ func (ps *PlayerSession) Close() {
 	ps.conn.Close()
 }
 
-func (ps *PlayerSession) onRecv(buf []byte, disp *game.SvrGameC2SDispatcher) {
+func (ps *PlayerSession) onRecv(buf []byte, disp *game.GameC2SDispatcher) {
 	ps.buffer = append(ps.buffer, buf...)
 	ps.count++
 
@@ -37,17 +38,17 @@ func (ps *PlayerSession) onRecv(buf []byte, disp *game.SvrGameC2SDispatcher) {
 		if len(ps.buffer) < (2 + pkglen) {
 			return
 		}
-		disp.OnHandlePkg(ps.buffer[2 : 2+pkglen])
+		disp.OnHandlePackage(ps.buffer[2 : 2+pkglen])
 		ps.buffer = ps.buffer[2+pkglen:]
 	}
 }
 
-func NewPlayerSession(conn net.Conn) *PlayerSession {
-	var ps = new(PlayerSession)
-	ps.buffer = make([]byte, 0)
-	ps.count = 0
-	ps.conn = conn
-	return ps
+func newPlayerSession(conn net.Conn) *PlayerSession {
+	return &PlayerSession{
+		buffer: make([]byte, 0),
+		count:  0,
+		conn:   conn,
+	}
 }
 
 func main() {
@@ -62,17 +63,18 @@ func main() {
 			return
 		}
 
-		var buf [1024]byte
-		ps := NewPlayerSession(conn)
+		var buf [2048]byte
+		ps := newPlayerSession(conn)
 		handler := new(handlerSvr)
-		dx := game.NewGameC2SDispatcher(handler, ps)
+		dp := game.MakeGameC2SDispatcher(handler, ps)
 
 		for {
 			n, err := conn.Read(buf[:])
 			if err != nil {
 				break
 			}
-			ps.onRecv(buf[:n], dx)
+			ps.onRecv(buf[:n], dp)
 		}
+		fmt.Println()
 	}
 }

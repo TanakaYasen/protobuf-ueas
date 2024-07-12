@@ -5,15 +5,12 @@ import (
 	"net"
 	game "protogen/generated/game"
 	"time"
-
-	proto "github.com/gogo/protobuf/proto"
 )
 
 type PlayerSession struct {
-	buffer     []byte
-	count      int64
-	conn       net.Conn
-	dispatcher *game.SvrGameC2SDispatcher
+	buffer []byte
+	count  int64
+	conn   net.Conn
 }
 
 func (ps *PlayerSession) SendPackage(buff []byte) {
@@ -28,7 +25,7 @@ func (ps *PlayerSession) Close() {
 	ps.conn.Close()
 }
 
-func (ps *PlayerSession) onRecv(buf []byte, disp *game.SvrGameC2SDispatcher) {
+func (ps *PlayerSession) onRecv(buf []byte, disp *game.GameC2SPostHelper) {
 	ps.buffer = append(ps.buffer, buf...)
 	ps.count++
 
@@ -40,17 +37,16 @@ func (ps *PlayerSession) onRecv(buf []byte, disp *game.SvrGameC2SDispatcher) {
 		if len(ps.buffer) < (2 + pkglen) {
 			return
 		}
-		disp.OnHandlePkg(ps.buffer[2 : 2+pkglen])
+		disp.OnHandlePackage(ps.buffer[2 : 2+pkglen])
 		ps.buffer = ps.buffer[2+pkglen:]
 	}
 }
 
-func NewPlayerSession(conn net.Conn, dispatcher *game.SvrGameC2SDispatcher) *PlayerSession {
+func NewPlayerSession(conn net.Conn) *PlayerSession {
 	var ps = new(PlayerSession)
 	ps.buffer = make([]byte, 0)
 	ps.count = 0
 	ps.conn = conn
-	ps.dispatcher = dispatcher
 	return ps
 }
 
@@ -61,25 +57,21 @@ func main() {
 	}
 
 	var buf [1024]byte
-	ps := NewPlayerSession(conn, nil)
-	dx := game.NewGameC2SDispatcher(new(handlerCli), ps)
+	ps := NewPlayerSession(conn)
+	helper := game.MakeGameC2SHelper(ps, new(handlerCli))
 
 	go func() {
-		var i uint64
 		for {
-			var pkg = &game.Package{}
-			i++
-			pkg.SessionId = i
-			pkg.Route = "EnterScene"
+			req := &game.EnterSceneReq{}
+			req.SceneId = 9999
+			helper.SendEnterScene(req)
 
-			var esreq = &game.EnterSceneReq{}
-			esreq.SceneId = int32(i * 2)
-			d, _ := proto.Marshal(esreq)
-			pkg.Data = d
-
-			d, _ = proto.Marshal(pkg)
-
-			ps.SendPackage(d)
+			moveReq := &game.MoveReq{
+				X: 1.0,
+				Y: 2.0,
+				Z: 3.0,
+			}
+			helper.CallDoMovement(moveReq)
 			time.Sleep(time.Second)
 		}
 	}()
@@ -88,6 +80,6 @@ func main() {
 		if err != nil {
 			break
 		}
-		ps.onRecv(buf[:n], dx)
+		ps.onRecv(buf[:n], helper)
 	}
 }
