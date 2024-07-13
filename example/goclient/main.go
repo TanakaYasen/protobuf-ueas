@@ -4,6 +4,7 @@ import (
 	"log"
 	"net"
 	game "protogen/generated/game"
+	"protogen/netlib"
 	"time"
 )
 
@@ -11,6 +12,8 @@ type PlayerSession struct {
 	buffer []byte
 	count  int64
 	conn   net.Conn
+	core   *netlib.MessagerCore
+	*game.GameC2SMessager
 }
 
 func (ps *PlayerSession) SendPackage(buff []byte) {
@@ -25,7 +28,7 @@ func (ps *PlayerSession) Close() {
 	ps.conn.Close()
 }
 
-func (ps *PlayerSession) onRecv(buf []byte, disp *game.GameC2SPostHelper) {
+func (ps *PlayerSession) onRecv(buf []byte) {
 	ps.buffer = append(ps.buffer, buf...)
 	ps.count++
 
@@ -37,17 +40,23 @@ func (ps *PlayerSession) onRecv(buf []byte, disp *game.GameC2SPostHelper) {
 		if len(ps.buffer) < (2 + pkglen) {
 			return
 		}
-		disp.OnHandlePackage(ps.buffer[2 : 2+pkglen])
+		data := ps.core.OnHandlePackage(ps.buffer[2 : 2+pkglen])
+		if data != nil {
+			ps.SendPackage(data)
+		}
 		ps.buffer = ps.buffer[2+pkglen:]
 	}
 }
 
-func NewPlayerSession(conn net.Conn) *PlayerSession {
-	var ps = new(PlayerSession)
-	ps.buffer = make([]byte, 0)
-	ps.count = 0
-	ps.conn = conn
-	return ps
+func (ps *PlayerSession) Poll() {
+	var buf [2048]byte
+	for {
+		n, err := ps.conn.Read(buf[:])
+		if err != nil {
+			return
+		}
+		ps.onRecv(buf[:n])
+	}
 }
 
 func main() {
@@ -55,31 +64,29 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-
-	var buf [1024]byte
-	ps := NewPlayerSession(conn)
-	helper := game.MakeGameC2SHelper(ps, new(handlerCli))
+	core := netlib.CreateMessageCore(game.MakeGameS2CDispatcher(new(handlerCli)))
+	ps := &PlayerSession{
+		buffer: make([]byte, 0),
+		count:  0,
+		conn:   conn,
+		core:   core,
+	}
+	ps.GameC2SMessager = game.MakeGameC2SMessager(new(cbkHandler), core, ps)
 
 	go func() {
 		for {
 			req := &game.EnterSceneReq{}
 			req.SceneId = 9999
-			helper.SendEnterScene(req)
+			ps.SendEnterScene(req)
 
 			moveReq := &game.MoveReq{
 				X: 1.0,
 				Y: 2.0,
 				Z: 3.0,
 			}
-			helper.CallDoMovement(moveReq)
+			ps.CallDoMovement(moveReq)
 			time.Sleep(time.Second)
 		}
 	}()
-	for {
-		n, err := conn.Read(buf[:])
-		if err != nil {
-			break
-		}
-		ps.onRecv(buf[:n], helper)
-	}
+	ps.Poll()
 }

@@ -1,0 +1,13 @@
+syntax = "proto3";
+package netlib;
+
+option go_package = "./;netlib";
+
+message Package {
+	string name = 1;		// 消息名称，用于寻找回调函数
+	uint32 seq = 2;
+	int32 errCode = 3;
+	bytes data = 4;
+	//node timestamp 之类的
+}
+

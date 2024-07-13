@@ -5,13 +5,15 @@ import (
 	"log"
 	"net"
 	game "protogen/generated/game"
+	"protogen/netlib"
 )
 
 type PlayerSession struct {
-	buffer     []byte
-	count      int64
-	conn       net.Conn
-	dispatcher *game.GameC2SImplement
+	buffer []byte
+	count  int64
+	conn   net.Conn
+	core   *netlib.MessagerCore
+	*game.GameS2CMessager
 }
 
 func (ps *PlayerSession) SendPackage(buff []byte) {
@@ -26,7 +28,7 @@ func (ps *PlayerSession) Close() {
 	ps.conn.Close()
 }
 
-func (ps *PlayerSession) onRecv(buf []byte, disp *game.GameC2SDispatcher) {
+func (ps *PlayerSession) onRecv(buf []byte) {
 	ps.buffer = append(ps.buffer, buf...)
 	ps.count++
 
@@ -38,16 +40,22 @@ func (ps *PlayerSession) onRecv(buf []byte, disp *game.GameC2SDispatcher) {
 		if len(ps.buffer) < (2 + pkglen) {
 			return
 		}
-		disp.OnHandlePackage(ps.buffer[2 : 2+pkglen])
+		data := ps.core.OnHandlePackage(ps.buffer[2 : 2+pkglen])
+		if data != nil {
+			ps.SendPackage(data)
+		}
 		ps.buffer = ps.buffer[2+pkglen:]
 	}
 }
 
-func newPlayerSession(conn net.Conn) *PlayerSession {
-	return &PlayerSession{
-		buffer: make([]byte, 0),
-		count:  0,
-		conn:   conn,
+func (ps *PlayerSession) Poll() {
+	var buf [2048]byte
+	for {
+		n, err := ps.conn.Read(buf[:])
+		if err != nil {
+			return
+		}
+		ps.onRecv(buf[:n])
 	}
 }
 
@@ -62,19 +70,15 @@ func main() {
 		if err != nil {
 			return
 		}
-
-		var buf [2048]byte
-		ps := newPlayerSession(conn)
-		handler := new(handlerSvr)
-		dp := game.MakeGameC2SDispatcher(handler, ps)
-
-		for {
-			n, err := conn.Read(buf[:])
-			if err != nil {
-				break
-			}
-			ps.onRecv(buf[:n], dp)
+		ps := &PlayerSession{
+			buffer: make([]byte, 0),
+			count:  0,
+			conn:   conn,
+			core:   netlib.CreateMessageCore(game.MakeGameC2SDispatcher(new(handlerSvr))),
 		}
-		fmt.Println()
+		ps.GameS2CMessager = game.MakeGameS2CMessager(new(cbkHandler), ps.core, ps)
+		ps.Poll()
+
+		fmt.Println("conn disconnected")
 	}
 }

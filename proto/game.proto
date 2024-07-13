@@ -6,14 +6,6 @@ option go_package = "./game;game";
 message Void {
 }
 
-message Package {
-	string name = 1;		// 消息名称，用于寻找回调函数
-	uint32 sessionId = 2;
-	int32 errCode = 3;
-	bytes data = 4;
-	//node timestamp 之类的
-}
-
 message EnterSceneReq {
   int32 sceneId = 1;
 }
@@ -40,3 +32,20 @@ service GameC2S {
   rpc DoMovement (MoveReq) returns (MoveResp);
 }
 
+message ItemUpdateReq {
+	uint32 id = 1;
+	uint32 count = 2;
+}
+
+
+message LevelUpReq {
+	uint32 old = 1;
+	uint32 new = 2;
+}
+
+
+// s2c
+service GameS2C {
+  rpc ItemUpdate (ItemUpdateReq) returns (Void);
+  rpc LevelUp (LevelUpReq) returns (Void);
+}

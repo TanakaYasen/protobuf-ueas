@@ -4,18 +4,9 @@
 package {{.GoPackageName}}
 
 import (
-	"fmt"
 	proto "github.com/gogo/protobuf/proto"
+	. "protogen/netlib"
 )
-
-type INetConnection interface {
-	SendPackage([]byte)
-	Close()
-}
-
-type IPacker interface {
-	Pack(name string, data []byte) []byte
-}
 
 // ================================== 以下供RPC服务端使用 ==================================
 {{range .Services}}
@@ -30,12 +21,11 @@ type IPacker interface {
 {{- .Comments.Leading }}
 type {{$ServerInterfaceName}} interface {
 	{{- range .Methods}}
-	{{.GoName}} ({{.Input.GoIdent.GoName}}) {{ if IsNotEmpty .Output.GoIdent.GoName}} {{.Output.GoIdent.GoName}} {{ end }}
+	{{.GoName}} (*{{.Input.GoIdent.GoName}}) {{ if IsNotEmpty .Output.GoIdent.GoName}} *{{.Output.GoIdent.GoName}} {{ end }}
 	{{- end}}
 }
 
 type {{$ServerDispatcherName}} struct {
-	connection INetConnection
 	implement {{$ServerInterfaceName}}
 	methods map[string]func(data []byte) []byte
 }
@@ -53,49 +43,33 @@ func (s *{{$ServerDispatcherName}}) on{{.GoName}} (b []byte) []byte {
 		return nil
 	}
 	{{- if IsNotEmpty .Output.GoIdent.GoName }} 
-	var response = s.implement.{{.GoName}}(request)
-	d, _ := proto.Marshal(&response)
+	var response = s.implement.{{.GoName}}(&request)
+	d, _ := proto.Marshal(response)
 	return d
 	{{ else }}
-	s.implement.{{.GoName}}(request)
+	s.implement.{{.GoName}}(&request)
 	return nil
 	{{- end }}
 }
 {{- end}}
 
 {{ .Comments.Leading -}}
-func (d *{{$ServerDispatcherName}}) OnHandlePackage(msg []byte) {
-	req := Package{}
-	if err := proto.Unmarshal(msg, &req); err != nil {
-		return
-	}
-	
+func (d *{{$ServerDispatcherName}}) OnDispatchPackage(name string, payload []byte) []byte {
 	// server-end has no response
-	if method, ok := d.methods[req.Name]; ok {
+	if method, ok := d.methods[name]; ok {
 		{{if eq (GetDirection $ServiceDirection) "s2c"}}
-		rp := method(req.Data)
-		if rp == nil {
-			return
-		}
-		resp := Package{
-			SessionId: req.SessionId,
-			Data:      rp,
-		}
-		rd, err := proto.Marshal(&resp)
-		if err != nil {
-			return
-		}
-		d.connection.SendPackage(rd)
+		return method(payload)
 		{{else}}
-		method(req.Data)
+		method(payload)
+		return nil
 		{{end}}
 	}
+	return nil
 }
 
-func Make{{$ServiceName}}Dispatcher(impl {{$ServerInterfaceName}}, conn INetConnection) *{{$ServerDispatcherName}} {
+func Make{{$ServerDispatcherName}}(impl {{$ServerInterfaceName}}) *{{$ServerDispatcherName}} {
 	var dispatcher = new({{$ServerDispatcherName}})
 	dispatcher.implement = impl
-	dispatcher.connection = conn
 	dispatcher.methods = make(map[string]func(data []byte) []byte)
 	//hard-coded router
 	{{- range .Methods}}
@@ -108,16 +82,11 @@ func Make{{$ServiceName}}Dispatcher(impl {{$ServerInterfaceName}}, conn INetConn
 
 // ================================== 以下供RPC客户端使用 ==================================
 
-type IRpcCallback interface {
-	OnResponse(sessionId uint32, content []byte) error
-}
-
 {{range .Services}}
-{{- $ServiceName := UpperIdent .GoName }}
-{{- $HelperName := print (UpperIdent .GoName) "PostHelper"}}
-{{- $HelperRpcImplement := print (UpperIdent .GoName) "HelperRpcImplement"}}
+{{- $MessagerName := print (UpperIdent .GoName) "Messager"}}
+{{- $MessagerRpcImplement := print (UpperIdent .GoName) "MessagerRpcImplement"}}
 
-type {{$HelperRpcImplement}} interface {
+type {{$MessagerRpcImplement}} interface {
 	{{- range .Methods}}
 	{{if IsNotEmpty  .Output.GoIdent.GoName}}
 	{{.GoName}}(sessionId uint32, resp *{{.Output.GoIdent.GoName}})
@@ -125,35 +94,15 @@ type {{$HelperRpcImplement}} interface {
 	{{- end}}
 }
 
-type {{$HelperName}} struct {
-	conn INetConnection
-	sessionId uint32
-	stubs map[uint32]func(uint32, []byte) //Data
-	cbkImpletation {{$HelperRpcImplement}}
-}
-
-func (h *{{$HelperName}}) nextId() uint32 {
-	h.sessionId++
-	if h.sessionId == 0 {
-		h.sessionId++
-	}
-	return h.sessionId
-}
-func (h *{{$HelperName}}) getId() uint32 {
-	return h.sessionId
-}
-
-func (h *{{$HelperName}}) OnResponse(sessionId uint32, content []byte) error {
-	cb, ok := h.stubs[sessionId]
-	if ok {
-		cb(sessionId, content)
-	}
-	return fmt.Errorf("stub %d not found", sessionId)
+type {{$MessagerName}} struct {
+	cbkImpletation {{$MessagerRpcImplement}}
+	pkgMaker 	IPkgMaker
+	connection INetConnection
 }
 
 {{ range .Methods}}
 {{if IsNotEmpty .Output.GoIdent.GoName}}
-func (h *{{$HelperName}}) cb{{.GoName}}(sessionId uint32, content []byte) {
+func (h *{{$MessagerName}}) cb{{.GoName}}(sessionId uint32, content []byte) {
 	resp := &{{.Output.GoIdent.GoName}}{}
 	proto.Unmarshal(content, resp)
 	h.cbkImpletation.{{.GoName}}(sessionId, resp)
@@ -162,44 +111,23 @@ func (h *{{$HelperName}}) cb{{.GoName}}(sessionId uint32, content []byte) {
 {{ end -}}
 
 {{range .Methods}}
-func (h *{{$HelperName}}) {{ print (PostPrefix .Output.GoIdent.GoName) }}{{.GoName}} (req *{{.Input.GoIdent.GoName}}) {
+func (h *{{$MessagerName}}) {{ print (PostPrefix .Output.GoIdent.GoName) }}{{.GoName}} (req *{{.Input.GoIdent.GoName}}) {
 	p, _ := proto.Marshal(req)
-	s := &Package{
-		Name:     "{{.GoName}}",
-{{if IsNotEmpty .Output.GoIdent.GoName}}
-		SessionId: h.nextId(),
-{{end}}
-		Data:      p,
-	}
-	p, _ = proto.Marshal(s)
-	h.conn.SendPackage(p)
-{{- if IsNotEmpty .Output.GoIdent.GoName }}
-	h.stubs[h.getId()] = h.cb{{.GoName}}
-{{- end }}
+{{- if IsNotEmpty .Output.GoIdent.GoName}}
+	d := h.pkgMaker.MakeCallPkg("{{.GoName}}", p, h.cb{{.GoName}})
+{{ else }}
+	d := h.pkgMaker.MakeSendPkg("{{.GoName}}", p)
+{{- end}}
+	h.connection.SendPackage(d)
 }
 {{end}}
 
-func (h *{{$HelperName}}) OnHandlePackage(msg []byte) {
-	req := &Package{}
-	if err := proto.Unmarshal(msg, req); err != nil {
-		return
-	}
-
-	// an rpc response
-	if req.SessionId != 0 {
-		h.stubs[req.SessionId](req.SessionId, req.Data)
-		return
-	}
-	return
-}
-
-func Make{{.GoName}}Helper(conn INetConnection, impl {{$HelperRpcImplement}}) *{{$HelperName}} {
-	return &{{$HelperName}} {
-		conn : conn,
+func Make{{$MessagerName}}(impl {{$MessagerRpcImplement}}, pkgMaker IPkgMaker, conn INetConnection) *{{$MessagerName}} {
+	return &{{$MessagerName}} {
 		cbkImpletation : impl,
-		stubs : make(map[uint32]func(uint32, []byte)),
+		pkgMaker:pkgMaker,
+		connection:conn,
 	}
 }
 
 {{end}}
-

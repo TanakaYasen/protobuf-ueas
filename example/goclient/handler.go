@@ -2,12 +2,21 @@ package main
 
 import (
 	"fmt"
-	. "protogen/generated/game"
+	game "protogen/generated/game"
 )
 
 type handlerCli struct {
 }
 
-func (*handlerCli) DoMovement(sessionId uint32, resp *MoveResp) {
-	fmt.Println("move", resp.X, resp.Y, resp.Z)
+func (*handlerCli) ItemUpdate(*game.ItemUpdateReq) {
+}
+
+func (*handlerCli) LevelUp(*game.LevelUpReq) {
+}
+
+type cbkHandler struct {
+}
+
+func (c *cbkHandler) DoMovement(u uint32, resp *game.MoveResp) {
+	fmt.Println(resp.X, resp.Y, resp.Z)
 }
