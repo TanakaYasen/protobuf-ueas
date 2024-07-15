@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <string>
 #include <functional>
-#include "netlib.h"
+#include "../netlib/netlib.h"
 #include "{{GetProtoFileBase .}}.pb.h"
 
 namespace {{.Proto.Package}} {
@@ -31,6 +31,8 @@ public:
 
 class {{$ServerDispatcherName}}  {
 public:
+	static {{$ServerDispatcherName}}* Make({{$ServerInterfaceName}} *impl);
+	{{$ServerDispatcherName}}({{$ServerInterfaceName}} *_impl):implement(_impl) {}
     std::string Name() const { return "{{$ServerDispatcherName}}"; }
     std::string OnDispatchPackage(const std::string &name, const std::string & payload);
 private:
@@ -41,8 +43,6 @@ private:
     std::string on{{.GoName}} (const std::string &);
     {{- end }}
 };
-
-{{$ServerDispatcherName}} *Make{{$ServerDispatcherName}}({{$ServerInterfaceName}} *impl);
 {{end}}
 
 // ================================== 以下供RPC客户端使用 ==================================
@@ -54,7 +54,7 @@ class {{$MessagerRpcImplement}} {
 public:
 	{{- range .Methods}}
 	{{- if IsNotEmpty .Output.GoIdent.GoName}}
-	void {{.GoName}}(uint32_t sessionId , {{.Output.GoIdent.GoName}} *resp);
+	virtual void {{.GoName}}(uint32_t seq , const {{.Output.GoIdent.GoName}} &resp);
 	{{- end}}
 	{{- end}}
 };
@@ -63,10 +63,13 @@ class {{$MessagerName}} {
 	{{$MessagerRpcImplement}} *cbkImpletation; 
 	IPkgMaker *pkgMaker;
 	INetConnection *connection;
-private:
+public:
+	static {{$MessagerName}} *Make({{$MessagerRpcImplement}} *impl, IPkgMaker *pkgMaker, INetConnection *conn);
 {{- range .Methods}}
+	// rpc {{.GoName}}({{.Input.GoIdent.GoName}}) returns ({{.Output.GoIdent.GoName}})
+	void {{ print (PostPrefix .Output.GoIdent.GoName) }}{{.GoName}}(const {{.Input.GoIdent.GoName}} &req);
 {{- if IsNotEmpty .Output.GoIdent.GoName}}
-    void cb{{.GoName}}(uint32_t seq , const std::string &content);
+	void cb{{.GoName}}(uint32_t seq, const std::string &content);
 {{- end}}
 {{- end}}
 };

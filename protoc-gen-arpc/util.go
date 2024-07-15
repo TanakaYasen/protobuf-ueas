@@ -100,3 +100,8 @@ func getProtoFileBase(file *protogen.File) string {
 	fileName := filepath.Base(protoFilePath)
 	return strings.TrimSuffix(fileName, filepath.Ext(fileName))
 }
+
+func getRelativePath(file *protogen.File) string {
+	relativePath := file.Desc.Path()
+	return relativePath[:len(relativePath)-len(filepath.Ext(relativePath))]
+}

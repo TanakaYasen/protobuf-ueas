@@ -7,7 +7,8 @@
 
 namespace {{.Proto.Package}} {
 
-// ================================== 以下供RPC服务端使用 ==================================
+using std::string;
+// ================================== For server-side use ==================================
 {{range .Services}}
 
 {{- $ServiceDirection := .Comments.Leading }}
@@ -16,39 +17,43 @@ namespace {{.Proto.Package}} {
 {{- $ServerDispatcherName := print (UpperIdent .GoName) "Dispatcher"}}
 
 {{- range .Methods}}
-std::string {{$ServerDispatcherName}}::on{{.GoName}} (const std::string& data) {
+string {{$ServerDispatcherName}}::on{{.GoName}} (const string& data) {
 	{{.Input.GoIdent.GoName}} request;
 	request.ParseFromString(data);
-	std::string payload;
 	{{- if IsNotEmpty .Output.GoIdent.GoName }} 
+	string payload;
 	{{.Output.GoIdent.GoName}} response;
 	implement->{{.GoName}}(request, response);
 	response.SerializeToString(&payload);
+	return payload;
 	{{- else }}
 	implement->{{.GoName}}(request);
 	{{- end }} 
-	return payload;
+	return string();
 }
 {{- end}}
 
 {{ .Comments.Leading -}}
-std::string {{$ServerDispatcherName}}::OnDispatchPackage(const std::string &name, const std::string &payload) {
+string {{$ServerDispatcherName}}::OnDispatchPackage(const string &name, const string &payload) {
 	// server-end has no response
 	auto it = (methods.find(name));
 	if (it != methods.end()) {
 		return it->second(payload);
 	}
-	return std::string();
+	return string();
 }
 
-{{$ServerDispatcherName}} *Make{{$ServerDispatcherName}}({{$ServerInterfaceName}} *impl) {
-	auto dispatcher = new {{$ServerDispatcherName}}();
+{{$ServerDispatcherName}} *{{$ServerDispatcherName}}::Make({{$ServerInterfaceName}} *impl) {
+	auto dispatcher = new {{$ServerDispatcherName}}(impl);
+	{{- range .Methods}}
+	dispatcher->methods.emplace(string("{{.GoName}}"), std::bind(&{{$ServerDispatcherName}}::on{{.GoName}}, dispatcher, std::placeholders::_1));
+	{{- end}}
 	return dispatcher;
 }
 {{end}}
 
 
-// ================================== 以下供RPC客户端使用 ==================================
+// ================================== For client-side use ==================================
 
 {{- range .Services}}
 {{- $MessagerName := print (UpperIdent .GoName) "Messager"}}
@@ -56,7 +61,7 @@ std::string {{$ServerDispatcherName}}::OnDispatchPackage(const std::string &name
 
 {{ range .Methods}}
 {{if IsNotEmpty .Output.GoIdent.GoName}}
-void {{$MessagerName}}::cb{{.GoName}}(uint32_t seq, const std::string & content) {
+void {{$MessagerName}}::cb{{.GoName}}(uint32_t seq, const string & content) {
 	{{.Output.GoIdent.GoName}} resp;
 	resp.ParseFromString(content);
 	cbkImpletation->{{.GoName}}(seq, resp);
@@ -65,24 +70,24 @@ void {{$MessagerName}}::cb{{.GoName}}(uint32_t seq, const std::string & content)
 {{ end -}}
 
 {{- range .Methods}}
-void {{$MessagerName}}::{{ print (PostPrefix .Output.GoIdent.GoName) }}{{.GoName}} ({{.Input.GoIdent.GoName}} *req ) {
-	std::string p;
-	req.SerializeToString(p);
+void {{$MessagerName}}::{{ print (PostPrefix .Output.GoIdent.GoName) }}{{.GoName}}(const {{.Input.GoIdent.GoName}} &req) {
+	string p;
+	req.SerializeToString(&p);
 {{- if IsNotEmpty .Output.GoIdent.GoName}}
-	auto d = pkgMaker->MakeCallPkg("{{.GoName}}", p, &cb{{.GoName}});
-{{ else }}
+	auto d = pkgMaker->MakeCallPkg("{{.GoName}}", p);
+{{- else }}
 	auto d = pkgMaker->MakeSendPkg("{{.GoName}}", p);
 {{- end}}
 	connection->SendPackage(d);
 }
 {{- end}}
 
-{{$MessagerName}} *Make{{$MessagerName}}({{$MessagerRpcImplement}} *impl , pkgMaker *IPkgMaker, conn INetConnection) {
-	return &{{$MessagerName}} {
-		cbkImpletation : impl,
-		pkgMaker:pkgMaker,
-		connection:conn,
-	};
+{{$MessagerName}}  *{{$MessagerName}}::Make({{$MessagerRpcImplement}} *impl, IPkgMaker *pkgMaker, INetConnection *conn) {
+	auto msger = new {{$MessagerName}}();
+	msger->pkgMaker = pkgMaker;
+	msger->cbkImpletation = impl;
+	msger->connection = conn;
+	return msger;
 }
 
 {{end}}

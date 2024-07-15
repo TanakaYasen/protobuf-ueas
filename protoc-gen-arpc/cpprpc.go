@@ -5,7 +5,6 @@ import (
 	"bytes"
 	_ "embed"
 	"log"
-	"path/filepath"
 	"text/template"
 
 	"google.golang.org/protobuf/compiler/protogen"
@@ -55,17 +54,8 @@ func genCppSource(g *protogen.GeneratedFile, file *protogen.File, temptext strin
 	g.P()
 }
 
-func getRelativePath(file *protogen.File) string {
-	relativePath := file.Desc.Path()
-	return relativePath[:len(relativePath)-len(filepath.Ext(relativePath))]
-}
-
 func generateCppRpc(gen *protogen.Plugin, file *protogen.File) {
-	log.Println(file.Desc.FullName(), file.Desc.Name(), "~~~~~~~~~~")
-	log.Println(file.GeneratedFilenamePrefix, "######")
-	log.Println(getRelativePath(file), "######")
-
-	baseFilename := getRelativePath(file)
+	baseFilename := getRelativePath(file) //, cpp, c# is not like go,
 	hFilename := baseFilename + ".arpc.h"
 	ccFilename := baseFilename + ".arpc.cpp"
 

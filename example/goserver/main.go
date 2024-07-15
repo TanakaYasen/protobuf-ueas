@@ -36,6 +36,7 @@ func (ps *PlayerSession) onRecv(buf []byte) {
 		if len(ps.buffer) < 2 {
 			return
 		}
+		// big-endian
 		pkglen := int(ps.buffer[0])*256 + int(ps.buffer[1])
 		if len(ps.buffer) < (2 + pkglen) {
 			return

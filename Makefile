@@ -19,9 +19,6 @@ net:
 
 cpp:
 	cd protoc-gen-arpc && go build
-	
 	protoc --cpp_out=generated --proto_path=proto proto/game.proto
 	protoc --arpc_out=generated --proto_path=proto --arpc_opt=cpp proto/game.proto
-
-cpptest:
-	cd example/cpp && g++ main.cpp
+	cd example/cppclient && g++ -g *.cpp ../../generated/*.cc ../../generated/*.cpp ../../netlib/*.cc -lprotobuf
