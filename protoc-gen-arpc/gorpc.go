@@ -7,7 +7,6 @@ import (
 	"go/format"
 	"log"
 
-	"path/filepath"
 	"text/template"
 
 	"google.golang.org/protobuf/compiler/protogen"
@@ -32,6 +31,7 @@ func genFmtSource(g *protogen.GeneratedFile, file *protogen.File, temptext strin
 		"PostPrefix":       postPrefix,
 		"GetDirection":     getDirection,
 		"GetProtoFilePath": getProtoFilePath,
+		"GetProtoFileBase": getProtoFileBase,
 	}
 	templ, err := template.New("rpcstub").Funcs(funcMap).Parse(temptext)
 	if err != nil {
@@ -55,7 +55,7 @@ func genFmtSource(g *protogen.GeneratedFile, file *protogen.File, temptext strin
 }
 
 func generateGoRpc(gen *protogen.Plugin, file *protogen.File) {
-	baseFilename := filepath.Base(file.GeneratedFilenamePrefix)
+	baseFilename := file.GeneratedFilenamePrefix
 	filename := baseFilename + ".arpc.go"
 
 	g := gen.NewGeneratedFile(filename, file.GoImportPath)

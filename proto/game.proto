@@ -1,5 +1,5 @@
 syntax = "proto3";
-package pb;
+package arpc;
 
 option go_package = "./game;game";
 

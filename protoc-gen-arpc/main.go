@@ -14,6 +14,11 @@ import (
 // Wire Protocol
 // https://protobuf.dev/programming-guides/encoding/
 
+var modeFuncs = map[string]func(gen *protogen.Plugin, file *protogen.File){
+	"cpp": generateCppRpc,
+	"go":  generateGoRpc,
+}
+
 func main() {
 	debug.SetTraceback("crash")
 
@@ -34,14 +39,17 @@ func main() {
 
 	protogen.Options{}.Run(func(plugin *protogen.Plugin) error {
 		params := plugin.Request.GetParameter()
-		log.Println("PARAMs:", params)
 		flag.CommandLine = flag.NewFlagSet("", flag.ExitOnError)
 		flag.CommandLine.Parse(strings.Split(params, ","))
 		for _, file := range plugin.Files {
 			if !file.Generate {
 				continue
 			}
-			generateGoRpc(plugin, file)
+			mf, ok := modeFuncs[params]
+			if !ok {
+				mf = generateCppRpc
+			}
+			mf(plugin, file)
 		}
 		return nil
 	})

@@ -70,6 +70,7 @@ func main() {
 		if err != nil {
 			return
 		}
+		fmt.Println(conn.RemoteAddr().String(), " has Connected")
 		ps := &PlayerSession{
 			buffer: make([]byte, 0),
 			count:  0,

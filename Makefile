@@ -1,22 +1,27 @@
 export PATH:=${PATH}:$(shell pwd)/protoc-gen-arpc
 
-all:
-	echo $(shell pwd)
-	cd protoc-gen-as && go build
+go:
 	cd protoc-gen-arpc && go build
 	
-	protoc --gogofast_out=./generated/ proto/game.proto
-	protoc --arpc_out=generated proto/game.proto
-	
-	mv generated/*.go generated/game
+	protoc --gogofast_out=generated proto/game.proto
+	protoc --arpc_out=generated --arpc_opt=go proto/game.proto
 	
 	cd example/goserver && go build
 	cd example/goclient && go build
 	
-test-wire:
+as:
 	# protoc --cpp_out=generated --proto_path=proto proto/game.proto
-	protoc --as_out=./generated/ proto/game.proto
+	protoc --as_out=generated proto/game.proto
 	
-netlibx:
+net:
 	@echo ${PATH}
 	cd netlib && go build
+
+cpp:
+	cd protoc-gen-arpc && go build
+	
+	protoc --cpp_out=generated --proto_path=proto proto/game.proto
+	protoc --arpc_out=generated --proto_path=proto --arpc_opt=cpp proto/game.proto
+
+cpptest:
+	cd example/cpp && g++ main.cpp

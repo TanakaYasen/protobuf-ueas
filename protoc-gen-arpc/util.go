@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"path/filepath"
 	"strings"
 
 	"google.golang.org/protobuf/compiler/protogen"
@@ -92,4 +93,10 @@ func getDirection(s protogen.Comments) string {
 
 func getProtoFilePath(file *protogen.File) string {
 	return file.Desc.Path()
+}
+
+func getProtoFileBase(file *protogen.File) string {
+	protoFilePath := file.Desc.Path()
+	fileName := filepath.Base(protoFilePath)
+	return strings.TrimSuffix(fileName, filepath.Ext(fileName))
 }
