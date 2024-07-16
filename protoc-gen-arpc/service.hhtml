@@ -48,35 +48,43 @@ private:
 // ================================== 以下供RPC客户端使用 ==================================
 {{range .Services}}
 {{- $MessagerName := print (UpperIdent .GoName) "Messager"}}
-{{- $MessagerRpcImplement := print (UpperIdent .GoName) "MessagerRpcImplement"}}
+{{- $MessagerHelper := print (UpperIdent .GoName) "Helper"}}
+{{- $MessagerRpcImplement := print (UpperIdent .GoName) "RpcImplement"}}
 
 class {{$MessagerRpcImplement}} {
 public:
 	{{- range .Methods}}
 	{{- if IsNotEmpty .Output.GoIdent.GoName}}
-	virtual void {{.GoName}}(uint32_t seq , const {{.Output.GoIdent.GoName}} &resp);
+	virtual void {{.GoName}}(uint32_t seq , const {{.Output.GoIdent.GoName}} &resp) = 0;
 	{{- end}}
 	{{- end}}
 };
 
-class {{$MessagerName}} {
+template<typename T>
+class {{$MessagerHelper}} {
+	T* h;
 	{{$MessagerRpcImplement}} *cbkImpletation; 
-	IPkgMaker *pkgMaker;
-	INetConnection *connection;
 public:
-	static {{$MessagerName}} *Make({{$MessagerRpcImplement}} *impl, IPkgMaker *pkgMaker, INetConnection *conn);
+	{{$MessagerHelper}}(T *t, {{$MessagerRpcImplement}} *ci): h(t), cbkImpletation(ci){}
 {{- range .Methods}}
 	// rpc {{.GoName}}({{.Input.GoIdent.GoName}}) returns ({{.Output.GoIdent.GoName}})
-	void {{ print (PostPrefix .Output.GoIdent.GoName) }}{{.GoName}}(const {{.Input.GoIdent.GoName}} &req);
+	void {{ print (PostPrefix .Output.GoIdent.GoName) }}{{.GoName}}(const {{.Input.GoIdent.GoName}} &req) {
+		string p;
+		req.SerializeToString(&p);
+{{- if IsNotEmpty .Output.GoIdent.GoName }}
+		auto d = h->MakeCallPkg("{{.GoName}}", p);
+{{- else }}
+		auto d = h->MakeSendPkg("{{.GoName}}", p);
+{{- end }}
+		h->SendPackage(d);
+		return;
+	}
 {{- if IsNotEmpty .Output.GoIdent.GoName}}
-	void cb{{.GoName}}(uint32_t seq, const std::string &content);
+	virtual void cb{{.GoName}}(uint32_t seq, const std::string &content) = 0;
 {{- end}}
 {{- end}}
 };
 
-
-{{$MessagerName}} *Make{{$MessagerName}}({{$MessagerRpcImplement}} *impl, IPkgMaker *pkgMaker, INetConnection *conn);
 {{end}}
-
 }
 

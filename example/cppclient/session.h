@@ -6,6 +6,7 @@
 
 using namespace netlib;
 using namespace arpc;
+using std::string;
 
 class ClientConnection : public INetConnection, public IPkgMaker
 {
@@ -16,14 +17,12 @@ public:
     void Update();
     virtual void OnFailed() {}
     virtual void OnRecv(uint8_t *data, int len) = 0;
-    virtual void OnConsoleInput(const std::string& cmd) = 0;
+    virtual void OnConsoleInput(const string& cmd) = 0;
     virtual void OnClose();
 
-    virtual void SendPackage(const std::string &msg) override;
+	//override INetConnection
+    virtual void SendPackage(const string &msg) override;
     virtual void Close() override {}
-	
-	virtual std::string MakeSendPkg(const std::string &name, const std::string &content) override;
-	virtual std::string MakeCallPkg(const std::string &name, const std::string &content) override;
 
 	bool 	IsActive() const {return isActive;}
 private:
@@ -32,13 +31,23 @@ private:
 };
 
 
-
-class ClientSession : public ClientConnection, public GameS2CDispatcher {
+class ClientSession : public ClientConnection, public GameS2CDispatcher, public GameC2SHelper<ClientSession> {
+	using StubMap = std::unordered_map<uint32_t, std::function<void()>>;
 public:
-	ClientSession(GameS2CImplement *impl):GameS2CDispatcher(impl) {}
-    void OnConsoleInput(const std::string& cmd) override;
+	ClientSession(GameS2CImplement *impl, GameC2SRpcImplement *rpcImpl):GameS2CDispatcher(impl), GameC2SHelper(this, rpcImpl) {}
+    void OnConsoleInput(const string& cmd) override;
     virtual void OnRecv(uint8_t *data, int len) override;
+	
+	//override IPkgMaker
+	virtual string MakeSendPkg(const string &name, const string &content) override;
+	virtual string MakeCallPkg(const string &name, const string &content) override;
+	
 private:
-	std::string incomeBuffer;
-	std::string OnHandlePackage(const std::string& m);
+	StubMap	stubs;
+	string incomeBuffer;
+	string OnHandlePackage(const string& m);
+	
+public:
+	virtual void cbDoMovement(uint32_t, const std::string&) override {
+	};
 };

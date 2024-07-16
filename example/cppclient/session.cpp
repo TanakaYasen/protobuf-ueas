@@ -1,16 +1,13 @@
 
 #include "session.h"
 
-
-#include<errno.h>
-
+#include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <sys/time.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
@@ -68,26 +65,25 @@ void ClientConnection::Update() {
 	}
 }
 
-
 void ClientConnection::OnClose() {
 	close(sockfd);
 }
 
-void ClientConnection::SendPackage(const std::string &msg) {
+void ClientConnection::SendPackage(const string &msg) {
 	size_t len = msg.length();
 	uint8_t buf[2] = {uint8_t(len >> 8), uint8_t(len&0xff)};
 	write(sockfd, buf, 2);
 	write(sockfd, msg.c_str(), len);
 }
 
-std::string ClientConnection::MakeSendPkg(const std::string &name, const std::string &content) {
+string ClientSession::MakeSendPkg(const string &name, const string &content) {
 	netlib::Package pkg;
 	pkg.set_data(content);
 	pkg.set_name(name);
 	return pkg.SerializeAsString();
 }
 
-std::string ClientConnection::MakeCallPkg(const std::string &name, const std::string &content) {
+string ClientSession::MakeCallPkg(const string &name, const string &content) {
 	netlib::Package pkg;
 	pkg.set_data(content);
 	pkg.set_name(name);
@@ -95,20 +91,21 @@ std::string ClientConnection::MakeCallPkg(const std::string &name, const std::st
 }
 
 
-extern GameC2SMessager *m;
-
-void ClientSession :: OnConsoleInput(const std::string& cmd) {
+void ClientSession::OnConsoleInput(const string& cmd) {
 	static int sceneId = 0;
-	if (cmd == "abc") {
-		std::cout << "abc" << std::endl;
-		arpc::EnterSceneReq esreq;
-		esreq.set_sceneid(sceneId++);
-		m->SendEnterScene(esreq);
+	if (cmd == "es") {
+		arpc::EnterSceneReq req;
+		req.set_sceneid(sceneId++);
+		this->SendEnterScene(req);
+	} else if (cmd == "ls") {
+		arpc::LeaveSceneReq req;
+		req.set_sceneid(sceneId++);
+		this->SendLeaveScene(req);
 	}
 }
 
-	void ClientSession ::OnRecv(uint8_t *data, int len)  {
-	incomeBuffer += std::string((char*)data, len);
+void ClientSession ::OnRecv(uint8_t *data, int len)  {
+	incomeBuffer += string((char*)data, len);
 	for (;;) {
 		if (incomeBuffer.size() < 2) {
 			return;
@@ -117,14 +114,15 @@ void ClientSession :: OnConsoleInput(const std::string& cmd) {
 		if (incomeBuffer.size() < 2 + pkglen) {
 			return;
 		}
-		std::string data = OnHandlePackage(incomeBuffer.substr(0, 2+pkglen));
+		string data = OnHandlePackage(incomeBuffer.substr(0, 2+pkglen));
 		if (data.size() > 0) {
 			SendPackage(data);
 		}
 		incomeBuffer = incomeBuffer.substr(2+pkglen);
 	}
 }
-std::string ClientSession ::OnHandlePackage(const std::string& m) {
+
+string ClientSession ::OnHandlePackage(const string& m) {
 	Package req;
 	if (!req.ParseFromString(m)) {
 		return "";
@@ -132,11 +130,12 @@ std::string ClientSession ::OnHandlePackage(const std::string& m) {
 
 	// req.Name=="" indicates an rpc response
 	if (req.name() == "") {
+		stubs[req.seq()]();
 		return "";
 	}
 
 	// an request
-	std::string payload = OnDispatchPackage(req.name(), req.data());
+	string payload = OnDispatchPackage(req.name(), req.data());
 	if (payload.length() > 0) {
 		SendPackage(payload);
 	}

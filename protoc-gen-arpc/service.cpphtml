@@ -59,37 +59,6 @@ string {{$ServerDispatcherName}}::OnDispatchPackage(const string &name, const st
 {{- $MessagerName := print (UpperIdent .GoName) "Messager"}}
 {{- $MessagerRpcImplement := print (UpperIdent .GoName) "MessagerRpcImplement"}}
 
-{{ range .Methods}}
-{{if IsNotEmpty .Output.GoIdent.GoName}}
-void {{$MessagerName}}::cb{{.GoName}}(uint32_t seq, const string & content) {
-	{{.Output.GoIdent.GoName}} resp;
-	resp.ParseFromString(content);
-	cbkImpletation->{{.GoName}}(seq, resp);
-}
-{{ end -}}
-{{ end -}}
-
-{{- range .Methods}}
-void {{$MessagerName}}::{{ print (PostPrefix .Output.GoIdent.GoName) }}{{.GoName}}(const {{.Input.GoIdent.GoName}} &req) {
-	string p;
-	req.SerializeToString(&p);
-{{- if IsNotEmpty .Output.GoIdent.GoName}}
-	auto d = pkgMaker->MakeCallPkg("{{.GoName}}", p);
-{{- else }}
-	auto d = pkgMaker->MakeSendPkg("{{.GoName}}", p);
-{{- end}}
-	connection->SendPackage(d);
-}
-{{- end}}
-
-{{$MessagerName}}  *{{$MessagerName}}::Make({{$MessagerRpcImplement}} *impl, IPkgMaker *pkgMaker, INetConnection *conn) {
-	auto msger = new {{$MessagerName}}();
-	msger->pkgMaker = pkgMaker;
-	msger->cbkImpletation = impl;
-	msger->connection = conn;
-	return msger;
-}
-
 {{end}}
 }
 
