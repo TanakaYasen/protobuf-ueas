@@ -10,9 +10,3 @@ public:
     virtual void Close()=0;
 };
 
-class IPkgMaker {
-public:
-    virtual string MakeSendPkg(const string &name, const string &content) = 0;
-    virtual string MakeCallPkg(const string &name, const string &content) = 0;
-};
-

@@ -8,7 +8,7 @@ using namespace netlib;
 using namespace arpc;
 using std::string;
 
-class ClientConnection : public INetConnection, public IPkgMaker
+class ClientConnection : public INetConnection
 {
 public:
     ClientConnection();
@@ -38,9 +38,8 @@ public:
     void OnConsoleInput(const string& cmd) override;
     virtual void OnRecv(uint8_t *data, int len) override;
 	
-	//override IPkgMaker
-	virtual string MakeSendPkg(const string &name, const string &content) override;
-	virtual string MakeCallPkg(const string &name, const string &content) override;
+	string MakeSendPkg(const string &name, const string &content);
+	string MakeCallPkg(const string &name, const string &content);
 	
 private:
 	StubMap	stubs;

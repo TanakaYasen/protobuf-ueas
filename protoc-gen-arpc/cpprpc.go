@@ -57,7 +57,7 @@ func genCppSource(g *protogen.GeneratedFile, file *protogen.File, temptext strin
 func generateCppRpc(gen *protogen.Plugin, file *protogen.File) {
 	baseFilename := getRelativePath(file) //, cpp, c# is not like go,
 	hFilename := baseFilename + ".arpc.h"
-	ccFilename := baseFilename + ".arpc.cpp"
+	ccFilename := baseFilename + ".arpc.cc"
 
 	g := gen.NewGeneratedFile(hFilename, file.GoImportPath)
 	genCppSource(g, file, hRpcStubCodeH)
