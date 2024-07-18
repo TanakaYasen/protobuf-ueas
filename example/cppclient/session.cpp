@@ -124,7 +124,7 @@ void ClientSession::OnRecv(uint8_t *data, int len)  {
 		if (incomeBuffer.size() < 2 + pkglen) {
 			return;
 		}
-		string data = onHandlePackage(incomeBuffer.substr(0, 2+pkglen));
+		string data = onHandlePackage(incomeBuffer.substr(2, 2+pkglen));
 		if (data.size() > 0) {
 			SendPackage(data);
 		}
@@ -134,6 +134,7 @@ void ClientSession::OnRecv(uint8_t *data, int len)  {
 
 string ClientSession::onHandlePackage(const string& m) {
 	Package req;
+	uint8_t *v = (uint8_t*)m.c_str();
 	if (!req.ParseFromString(m)) {
 		return "";
 	}
