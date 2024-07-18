@@ -83,10 +83,14 @@ string ClientSession::MakeSendPkg(const string &name, const string &content) {
 	return pkg.SerializeAsString();
 }
 
-string ClientSession::MakeCallPkg(const string &name, const string &content) {
+string ClientSession::MakeCallPkg(const string &name, const string &content, uint16_t funcId) {
 	netlib::Package pkg;
 	pkg.set_data(content);
 	pkg.set_name(name);
+	seqInc++;
+	if (seqInc == 0) seqInc++;
+	pkg.set_seq(seqInc);
+	stubs[seqInc] = funcId;
 	return pkg.SerializeAsString();
 }
 
@@ -101,6 +105,12 @@ void ClientSession::OnConsoleInput(const string& cmd) {
 		arpc::LeaveSceneReq req;
 		req.set_sceneid(sceneId++);
 		this->SendLeaveScene(req);
+	} else if (cmd == "mv") {
+		arpc::MoveReq req;
+		req.set_x(2.0);
+		req.set_y(3.0);
+		req.set_z(4.0);
+		this->CallDoMovement(req);
 	}
 }
 
@@ -114,7 +124,7 @@ void ClientSession::OnRecv(uint8_t *data, int len)  {
 		if (incomeBuffer.size() < 2 + pkglen) {
 			return;
 		}
-		string data = OnHandlePackage(incomeBuffer.substr(0, 2+pkglen));
+		string data = onHandlePackage(incomeBuffer.substr(0, 2+pkglen));
 		if (data.size() > 0) {
 			SendPackage(data);
 		}
@@ -122,7 +132,7 @@ void ClientSession::OnRecv(uint8_t *data, int len)  {
 	}
 }
 
-string ClientSession::OnHandlePackage(const string& m) {
+string ClientSession::onHandlePackage(const string& m) {
 	Package req;
 	if (!req.ParseFromString(m)) {
 		return "";
@@ -130,6 +140,15 @@ string ClientSession::OnHandlePackage(const string& m) {
 
 	// req.Name=="" indicates an rpc response
 	if (req.name() == "") {
+		auto it = stubs.find(req.seq());
+		if (it != stubs.end()) {
+			auto funcId = it->second;
+			auto it2 = cbMap.find(funcId);
+			if (it2 != cbMap.end()) {
+				(this->*it2->second)(req.seq(), req.data());
+				stubs.erase(it);
+			}
+		}
 		return "";
 	}
 

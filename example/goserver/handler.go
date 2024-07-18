@@ -17,6 +17,7 @@ func (*handlerSvr) LeaveScene(req *LeaveSceneReq) {
 }
 
 func (*handlerSvr) DoMovement(req *MoveReq) *MoveResp {
+	fmt.Printf("DoMovement@(%f, %f, %f)\n", req.X, req.Y, req.Z)
 	return &MoveResp{
 		X: req.X + 6.0,
 		Y: req.Y + 7.0,

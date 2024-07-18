@@ -62,17 +62,26 @@ public:
 
 template<typename T>
 class {{$MessagerHelper}} {
-	{{$MessagerRpcImplement}} *cbkImpletation; 
+protected:
+	{{$MessagerRpcImplement}} *cbkImpletation;
+	std::map<uint16_t, void ({{$MessagerHelper}}::*)(uint32_t, const string&)> cbMap;
 public:
-	{{$MessagerHelper}}({{$MessagerRpcImplement}} *ci): cbkImpletation(ci){}
-{{- range .Methods}}
+	{{$MessagerHelper}}({{$MessagerRpcImplement}} *ci): cbkImpletation(ci){
+		{{- range $i, $a := .Methods}}
+		{{- if IsNotEmpty .Output.GoIdent.GoName}}
+		cbMap[{{$i}}] = &{{$MessagerHelper}}::cb{{$a.GoName}};
+		{{- end}}
+		{{- end}}
+	}
+	
+{{- range $i, $ := .Methods}}
 	// rpc {{.GoName}}({{.Input.GoIdent.GoName}}) returns ({{.Output.GoIdent.GoName}})
 	void {{ print (PostPrefix .Output.GoIdent.GoName) }}{{.GoName}}(const {{.Input.GoIdent.GoName}} &req) {
 		string p;
 		req.SerializeToString(&p);
 		auto h = static_cast<T*>(this);
 {{- if IsNotEmpty .Output.GoIdent.GoName }}
-		auto d = h->MakeCallPkg("{{.GoName}}", p);
+		auto d = h->MakeCallPkg("{{.GoName}}", p, {{$i}});
 {{- else }}
 		auto d = h->MakeSendPkg("{{.GoName}}", p);
 {{- end }}
@@ -80,7 +89,11 @@ public:
 		return;
 	}
 {{- if IsNotEmpty .Output.GoIdent.GoName}}
-	virtual void cb{{.GoName}}(uint32_t seq, const std::string &content) = 0;
+	void cb{{.GoName}}(uint32_t seq, const std::string &content) {
+		{{.Output.GoIdent.GoName}} resp;
+		resp.ParseFromString(content);
+		cbkImpletation->{{.GoName}}(seq, resp);
+	};
 {{- end}}
 {{- end}}
 };

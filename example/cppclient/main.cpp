@@ -22,6 +22,7 @@ public:
 class ClientRpcCallbakcs : public GameC2SRpcImplement {
 public:
 	virtual void DoMovement(uint32_t seq , const MoveResp &resp) override {
+		std::cout << resp.x() << "," << resp.y() << "," << resp.z() << std::endl;
 	}
 };
 
