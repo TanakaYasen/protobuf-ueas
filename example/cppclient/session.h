@@ -32,7 +32,7 @@ private:
 
 
 class ClientSession : public ClientConnection, public GameS2CDispatcher, public GameC2SHelper<ClientSession> {
-	using StubMap = std::unordered_map<uint32_t, uint16_t>;
+	using StubMap = std::unordered_map<uint32_t, void(GameC2SHelper::*)(uint32_t, const string&)>;
 	uint32_t seqInc = 0;
 public:
 	ClientSession(GameS2CImplement *impl, GameC2SRpcImplement *rpcImpl):GameS2CDispatcher(impl), GameC2SHelper(rpcImpl) {}
@@ -40,7 +40,7 @@ public:
     virtual void OnRecv(uint8_t *data, int len) override;
 	
 	string MakeSendPkg(const string &name, const string &content);
-	string MakeCallPkg(const string &name, const string &content, uint16_t funcId);
+	string MakeCallPkg(const string &name, const string &content, void(GameC2SHelper::*)(uint32_t, const string&));
 	
 private:
 	StubMap	stubs;

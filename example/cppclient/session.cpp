@@ -83,7 +83,7 @@ string ClientSession::MakeSendPkg(const string &name, const string &content) {
 	return pkg.SerializeAsString();
 }
 
-string ClientSession::MakeCallPkg(const string &name, const string &content, uint16_t funcId) {
+string ClientSession::MakeCallPkg(const string &name, const string &content, void(GameC2SHelper::*funcId)(uint32_t, const string&)) {
 	netlib::Package pkg;
 	pkg.set_data(content);
 	pkg.set_name(name);
@@ -144,11 +144,8 @@ string ClientSession::onHandlePackage(const string& m) {
 		auto it = stubs.find(req.seq());
 		if (it != stubs.end()) {
 			auto funcId = it->second;
-			auto it2 = cbMap.find(funcId);
-			if (it2 != cbMap.end()) {
-				(this->*it2->second)(req.seq(), req.data());
-				stubs.erase(it);
-			}
+			(this->*funcId)(req.seq(), req.data());
+			stubs.erase(it);
 		}
 		return "";
 	}

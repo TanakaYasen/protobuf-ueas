@@ -64,24 +64,18 @@ template<typename T>
 class {{$MessagerHelper}} {
 protected:
 	{{$MessagerRpcImplement}} *cbkImpletation;
-	std::map<uint16_t, void ({{$MessagerHelper}}::*)(uint32_t, const string&)> cbMap;
 public:
 	{{$MessagerHelper}}({{$MessagerRpcImplement}} *ci): cbkImpletation(ci){
-		{{- range $i, $a := .Methods}}
-		{{- if IsNotEmpty .Output.GoIdent.GoName}}
-		cbMap[{{$i}}] = &{{$MessagerHelper}}::cb{{$a.GoName}};
-		{{- end}}
-		{{- end}}
 	}
 	
-{{- range $i, $ := .Methods}}
+{{- range .Methods}}
 	// rpc {{.GoName}}({{.Input.GoIdent.GoName}}) returns ({{.Output.GoIdent.GoName}})
 	void {{ print (PostPrefix .Output.GoIdent.GoName) }}{{.GoName}}(const {{.Input.GoIdent.GoName}} &req) {
 		string p;
 		req.SerializeToString(&p);
 		auto h = static_cast<T*>(this);
 {{- if IsNotEmpty .Output.GoIdent.GoName }}
-		auto d = h->MakeCallPkg("{{.GoName}}", p, {{$i}});
+		auto d = h->MakeCallPkg("{{.GoName}}", p, &{{$MessagerHelper}}::cb{{.GoName}});
 {{- else }}
 		auto d = h->MakeSendPkg("{{.GoName}}", p);
 {{- end }}
