@@ -50,7 +50,7 @@ void ClientConnection::Update() {
 	uint8_t buf[1024];
 	while (isActive) {
 		int n = read(sockfd, buf, 1024);
-		if (n  == 0) {
+		if (n == 0) {
 			isActive = false;
 			OnClose();
 		}
@@ -124,7 +124,7 @@ void ClientSession::OnRecv(uint8_t *data, int len)  {
 		if (incomeBuffer.size() < 2 + pkglen) {
 			return;
 		}
-		string data = onHandlePackage(incomeBuffer.substr(2, 2+pkglen));
+		string data = onHandlePackage(incomeBuffer.substr(2, pkglen));
 		if (data.size() > 0) {
 			SendPackage(data);
 		}
@@ -134,7 +134,6 @@ void ClientSession::OnRecv(uint8_t *data, int len)  {
 
 string ClientSession::onHandlePackage(const string& m) {
 	Package req;
-	uint8_t *v = (uint8_t*)m.c_str();
 	if (!req.ParseFromString(m)) {
 		return "";
 	}
