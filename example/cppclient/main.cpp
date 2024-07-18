@@ -11,20 +11,21 @@
 
 using namespace arpc;
 
-class ClientReactor : public GameS2CImplement  {
+class ClientStub : public GameS2CImplement  {
 public:
 	virtual void ItemUpdate(const ItemUpdateReq& req) override {
     }
 	virtual void LevelUp(const LevelUpReq& req) override {
     };
 };
+
 class ClientRpcCallbakcs : public GameC2SRpcImplement {
 public:
 	virtual void DoMovement(uint32_t seq , const MoveResp &resp) override {
 	}
 };
 
-ClientSession s(new ClientReactor, new ClientRpcCallbakcs);
+ClientSession s(new ClientStub, new ClientRpcCallbakcs);
 
 void timer_handler(int sig)
 {

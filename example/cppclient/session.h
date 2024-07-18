@@ -34,7 +34,7 @@ private:
 class ClientSession : public ClientConnection, public GameS2CDispatcher, public GameC2SHelper<ClientSession> {
 	using StubMap = std::unordered_map<uint32_t, std::function<void()>>;
 public:
-	ClientSession(GameS2CImplement *impl, GameC2SRpcImplement *rpcImpl):GameS2CDispatcher(impl), GameC2SHelper(this, rpcImpl) {}
+	ClientSession(GameS2CImplement *impl, GameC2SRpcImplement *rpcImpl):GameS2CDispatcher(impl), GameC2SHelper(rpcImpl) {}
     void OnConsoleInput(const string& cmd) override;
     virtual void OnRecv(uint8_t *data, int len) override;
 	
