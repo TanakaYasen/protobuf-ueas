@@ -104,7 +104,7 @@ void ClientSession::OnConsoleInput(const string& cmd) {
 	}
 }
 
-void ClientSession ::OnRecv(uint8_t *data, int len)  {
+void ClientSession::OnRecv(uint8_t *data, int len)  {
 	incomeBuffer += string((char*)data, len);
 	for (;;) {
 		if (incomeBuffer.size() < 2) {
@@ -122,7 +122,7 @@ void ClientSession ::OnRecv(uint8_t *data, int len)  {
 	}
 }
 
-string ClientSession ::OnHandlePackage(const string& m) {
+string ClientSession::OnHandlePackage(const string& m) {
 	Package req;
 	if (!req.ParseFromString(m)) {
 		return "";
@@ -130,14 +130,16 @@ string ClientSession ::OnHandlePackage(const string& m) {
 
 	// req.Name=="" indicates an rpc response
 	if (req.name() == "") {
-		stubs[req.seq()]();
 		return "";
 	}
 
 	// an request
 	string payload = OnDispatchPackage(req.name(), req.data());
 	if (payload.length() > 0) {
-		SendPackage(payload);
+		Package resp;
+		resp.set_data(payload);
+		resp.set_seq(req.seq());
+		return resp.SerializeAsString();
 	}
-	return "";
+	return payload;
 }
