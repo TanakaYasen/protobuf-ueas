@@ -7,8 +7,6 @@
 
 // Wire Format
 // https://protobuf.dev/programming-guides/encoding/
-// https://blog.51cto.com/u_6526235/7273612
-
 
 // Message Structure 
 // message = recode[]

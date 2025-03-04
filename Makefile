@@ -10,8 +10,9 @@ go:
 	cd example/goclient && go build
 	
 as:
+	cd protoc-gen-as && go build
 	# protoc --cpp_out=generated --proto_path=proto proto/game.proto
-	protoc --as_out=generated proto/game.proto
+	PATH=$(shell pwd)/protoc-gen-as:$(PATH) protoc --as_out=generated proto/game.proto
 	
 net:
 	@echo ${PATH}

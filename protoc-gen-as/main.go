@@ -12,7 +12,7 @@ import (
 // Wire Protocol
 // https://protobuf.dev/programming-guides/encoding/
 
-func main1() {
+func main2() {
 	debug.SetTraceback("crash")
 
 	logFile, err := os.OpenFile("./app.log", os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
@@ -24,17 +24,12 @@ func main1() {
 	log.SetOutput(logFile)
 
 	protogen.Options{}.Run(func(plugin *protogen.Plugin) error {
-
-		log.Printf(plugin.Request.GetParameter())
-
 		for _, f := range plugin.Files {
-
 			if !f.Generate {
 				continue
 			}
 			generateAs(plugin, f)
 		}
-
 		return nil
 	})
 }
