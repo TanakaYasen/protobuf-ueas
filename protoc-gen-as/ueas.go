@@ -26,18 +26,56 @@ var ueasHeaderTempl string = `
 namespace {{.PackageName}} {
 	
 	{{range .ClassDefinations}}
+	// begin of [[{{ .ClassName }}]]
 	USTRUCT(BlueprintType)
-	struct FPb_{{ .ClassName }} {
+	struct PROTOBUF_API FPb_{{ .ClassName }} : public FPbMessage {
+		GENERATED_BODY()
+		static constexpr int numFields = {{.NumFields}};
+		bool _Valid = true;
 	public:
+		FPb_{{ .ClassName }}();
+		explicit FPb_{{ .ClassName }}(usview _sv):Valid(false) {
+			_Valid = DoUnserialize(_sv);
+		}
+		
+		ustring DoSerialize() const;
+		bool DoUnserialize(usview _sv);
+		virtual FString GetMessageName() const override { return FString{TEXT("{{ .ClassName }}")}; }
+		virtual ustring Encode() const override { return DoSerialize(); }
+		virtual bool Decode(usview sv) override { return DoUnserialize(sv); }
+		FString DumpJson() const;
+		virtual void DumpJson(TSharedPtr<FJsonObject> obj) const override;
+
 		{{- range .Fields}}
 		UPROPERTY(BlueprintReadWrite)
 		{{.TypeName}} {{.FieldName}}{{if .DefaultValue}} = {{.DefaultValue}}{{end}};
 		{{end}}
-
-		bool _Valid = true;
-		ustring Serialize() const;
-		bool Unserialize(const uint8*, size_t);
+public:
+		uint8 DirtyMasks[1] = {0};
+		bool IsValid() const {return _Valid;}
 	};
+	// extension methods;
+	UCLASS(Meta = (ScriptMixin = "FPb_{{ .ClassName }}"))
+	class USprotoQuestProgressScriptMixinLibrary : public UObject {
+		GENERATED_BODY()
+	public:
+		UFUNCTION(ScriptCallable)
+		static FBinary DoSerialize(const FPb_{{ .ClassName }} &pbobj) {
+			return FBinary(pbobj.DoSerialize());
+		}
+		UFUNCTION(ScriptCallable)
+		static bool DoUnserialize(FPb_{{ .ClassName }} &pbobj, const FBinary &bin) {
+			return pbobj.DoUnserialize(usview {bin._BinaryData.GetData(), bin._BinaryData.Num()});
+		}
+		{{- range .Fields}}
+		UPROPERTY(BlueprintReadWrite)
+		static bool HasId(const FPb_{{ .ClassName }} &pbobj) {
+			return (pbobj.DirtyMasks[0] & 0x1) > 0;
+		}
+		{{end}}
+
+	};
+	//end of [[{{ .ClassName }}]]
 	{{end}}
 }
 
@@ -87,6 +125,10 @@ namespace {{.PackageName}} {
 #pragma endregion //"{{.ClassName}}"
 {{end}}
 }
+`
+
+var ueasProtoHTempl string = `
+
 `
 
 var ueasprotoNative = map[protoreflect.Kind]typeMapper{

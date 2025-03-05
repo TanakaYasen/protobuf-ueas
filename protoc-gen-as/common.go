@@ -36,6 +36,7 @@ type ClassDef struct {
 	TypeName   string
 	DirtyCount int
 	Fields     []*FieldInfo
+	NumFields  int
 	Nested     []*ClassDef
 	Enums      []*EnumDef
 }
